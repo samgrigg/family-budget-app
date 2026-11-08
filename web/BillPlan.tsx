@@ -20,6 +20,10 @@ export default function BillPlan({
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false);
+  const [saveError, setSaveError] = useState<{
+    id: string;
+    message: string;
+  } | null>(null);
   const [month, setMonth] = useState(() => {
     const today = new Date();
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
@@ -28,6 +32,13 @@ export default function BillPlan({
   const heading = useRef<HTMLHeadingElement>(null);
   const entries = useRef(new Map<string, HTMLDetailsElement>());
   const [advanceFrom, setAdvanceFrom] = useState<string | null>(null);
+  useEffect(() => {
+    if (saveError)
+      entries.current
+        .get(saveError.id)
+        ?.querySelector<HTMLElement>("[data-save-error]")
+        ?.focus();
+  }, [saveError]);
   useEffect(() => {
     if (!advanceFrom || !data) return;
     const current = entries.current.get(advanceFrom);
@@ -71,6 +82,7 @@ export default function BillPlan({
     setBusy(true);
     setError("");
     setNotice("");
+    setSaveError(null);
     try {
       const paymentDate = String(values.get("paymentDate") ?? "");
       const paymentAmount = String(values.get("paymentAmount") ?? "");
@@ -128,7 +140,7 @@ export default function BillPlan({
       );
     } catch (e: any) {
       void reload().catch(() => {});
-      setError(e.message);
+      setSaveError({ id: row.id, message: e.message });
     } finally {
       setBusy(false);
     }
@@ -300,9 +312,25 @@ export default function BillPlan({
                     <p>No payment account supplied in the worksheet.</p>
                   )}
                   {r.possibleDuplicate && (
+                    <div>
+                      <p>
+                        Possible duplicate: another planned bill is already
+                        confirmed.
+                      </p>
+                      <ul>
+                        {r.duplicatePlans?.map((p: any) => (
+                          <li key={p.id}>
+                            {p.name} · {p.accountName}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {r.observedMatches?.length > 0 && (
                     <p>
-                      Possible duplicate: another confirmed bill has the same
-                      normalized name. Compare both before confirming.
+                      Matching confirmed transaction history:{" "}
+                      {r.observedMatches.map((m: any) => m.name).join(", ")}.
+                      History estimates are shown separately from your plan.
                     </p>
                   )}
                   <form
@@ -425,9 +453,23 @@ export default function BillPlan({
                         maxLength={2000}
                       />
                     </label>
+                    {saveError && saveError.id === r.id && (
+                      <p
+                        role="alert"
+                        tabIndex={-1}
+                        data-save-error
+                        className="error"
+                      >
+                        {saveError.message}
+                      </p>
+                    )}
                     {(r.possibleDuplicate ||
                       r.acknowledgeDuplicate ||
-                      error.toLowerCase().includes("duplicate")) && (
+                      (saveError &&
+                        saveError.id === r.id &&
+                        saveError.message
+                          .toLowerCase()
+                          .includes("duplicate"))) && (
                       <label className="bill-payment">
                         <input
                           type="checkbox"

@@ -154,14 +154,25 @@ export function planState(
   const saved = storedPlans(store),
     byId = new Map(drafts.map((r) => [r.id, r]));
   for (const r of saved) byId.set(r.id, r);
-  const records = [...byId.values()].map((r) => ({
-    ...r,
-    resolvedAmount: resolveBillAmount(r, month, actuals),
-    possibleDuplicate: [
-      ...observed,
-      ...saved.filter((s) => s.id !== r.id && s.status === "confirmed"),
-    ].some((s) => payee(s.name) === payee(r.name)),
-  }));
+  const records = [...byId.values()].map((r) => {
+    const duplicatePlans = saved
+      .filter(
+        (s) =>
+          s.id !== r.id &&
+          s.status === "confirmed" &&
+          payee(s.name) === payee(r.name),
+      )
+      .map((s) => ({ id: s.id, name: s.name, accountName: s.accountName }));
+    return {
+      ...r,
+      resolvedAmount: resolveBillAmount(r, month, actuals),
+      possibleDuplicate: duplicatePlans.length > 0,
+      duplicatePlans,
+      observedMatches: observed
+        .filter((s) => payee(s.name) === payee(r.name))
+        .map((s) => ({ name: s.name })),
+    };
+  });
   const accounts = store.accountList();
   return {
     records,
@@ -348,12 +359,9 @@ export function savePlan(
       throw Error(
         "Resolve the amount, payment account and frequency before confirming. Transfers cannot be confirmed as bills.",
       );
-    const others = [
-      ...observed,
-      ...storedPlans(store).filter(
-        (s) => s.id !== r.id && s.status === "confirmed",
-      ),
-    ];
+    const others = storedPlans(store).filter(
+      (s) => s.id !== r.id && s.status === "confirmed",
+    );
     if (
       others.some((s) => payee(s.name) === payee(r.name)) &&
       r.acknowledgeDuplicate !== true

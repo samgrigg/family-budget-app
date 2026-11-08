@@ -62,12 +62,19 @@ it("requires resolving zero, unknown frequency, unassigned account and transfers
     expect(() => savePlan(s, { ...draft, ...change }, [])).toThrow();
   s.db.close();
 });
-it("requires explicit acknowledgement of possible duplicates before counting", () => {
+it("requires acknowledgement only for another confirmed plan, not matching history", () => {
   const s = new Store(":memory:", Buffer.alloc(32), "sandbox");
   installBillPlan(s);
-  expect(() => savePlan(s, draft, [{ name: "Rent" }])).toThrow(/duplicate/i);
-  savePlan(s, { ...draft, acknowledgeDuplicate: true }, [{ name: "Rent" }]);
-  expect(planState(s, []).records).toHaveLength(1);
+  savePlan(s, draft, [{ name: "Rent" }]);
+  expect(planState(s, [], [{ name: "Rent" }]).records[0]).toMatchObject({
+    possibleDuplicate: false,
+    observedMatches: [{ name: "Rent" }],
+  });
+  const duplicate = { ...draft, id: "another-rent" };
+  expect(() => savePlan(s, duplicate, [])).toThrow(/duplicate/i);
+  savePlan(s, { ...duplicate, acknowledgeDuplicate: true }, []);
+  expect(planState(s, []).records).toHaveLength(2);
+  expect(planState(s, []).records[0].duplicatePlans).toHaveLength(1);
   s.db.close();
 });
 it("separates currencies and includes annual and quarterly monthly set-asides", () => {
