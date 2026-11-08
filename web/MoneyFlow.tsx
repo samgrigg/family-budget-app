@@ -188,6 +188,10 @@ export default function MoneyFlow({ api }: any) {
         or account balances. Matched movements appear when either leg posts in
         the selected month; the other leg may post in an adjacent month. Pending
         entries are excluded. Settings hide accounts in this chart only.
+        Explicitly linked credit card repayments are movements rather than new
+        spending. If only the bank debit is available, the selected card route
+        is modeled; an unlinked card destination is labeled separately with
+        purchase history unavailable.
       </p>
       {error && (
         <p role="alert" className="error">

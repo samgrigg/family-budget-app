@@ -47,6 +47,12 @@ export default function BillsOverview({
         <strong>{money(b.typical, b.currency)}</strong>
       </summary>
       <div className="overview-bill-body">
+        {b.expenseType === "creditPayment" && (
+          <p>
+            Credit card repayment · account funding, excluded from expense
+            estimate
+          </p>
+        )}
         <p>
           {b.frequency} · {b.confidence}
         </p>
@@ -134,15 +140,16 @@ export default function BillsOverview({
             <p>
               {income
                 ? "Estimated recurring deposits · excludes unconfirmed sources and hidden accounts."
-                : "Estimated monthly cost · excludes less frequent bills and hidden accounts."}
+                : "Estimated monthly expense cost · excludes identified credit card repayments, less frequent bills and hidden accounts."}
             </p>
             <details>
               <summary>How this estimate works</summary>
               <p>
                 Uses typical historical amounts. Weekly and biweekly sources are
                 averaged at 52 and 26 occurrences per year. Illustrated
-                occurrences may differ from this average. Less frequent and
-                unscheduled items are excluded; variable amounts may change.
+                occurrences may differ from this average. Identified credit card
+                repayments, less frequent and unscheduled items are excluded;
+                variable amounts may change.
               </p>
             </details>
           </section>

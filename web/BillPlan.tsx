@@ -1,3 +1,5 @@
+import PaymentFields from "./PaymentFields";
+import { validMonth } from "../shared/billAmounts";
 import { useEffect, useRef, useState } from "react";
 import { budgetPlanEntries, nextBillToReview } from "./billReview";
 const money = (value: number, currency: string) =>
@@ -17,6 +19,11 @@ export default function BillPlan({
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false);
+  const [month, setMonth] = useState(() => {
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+  });
+  const endpoint = `/bill-plan?month=${month}`;
   const heading = useRef<HTMLHeadingElement>(null);
   const entries = useRef(new Map<string, HTMLDetailsElement>());
   const [advanceFrom, setAdvanceFrom] = useState<string | null>(null);
@@ -37,13 +44,14 @@ export default function BillPlan({
     setAdvanceFrom(null);
   }, [advanceFrom, data]);
   const reload = async () => {
-    const fresh = await api("/bill-plan");
+    const fresh = await api(endpoint);
     setData(fresh);
     return fresh;
   };
   useEffect(() => {
     let cancelled = false;
-    api("/bill-plan")
+    setData(null);
+    api(endpoint)
       .then((d) => {
         if (!cancelled) {
           setData(d);
@@ -56,18 +64,49 @@ export default function BillPlan({
     return () => {
       cancelled = true;
     };
-  }, [revision]);
+  }, [revision, month]);
   async function save(row: any, form: HTMLFormElement, status: string) {
     const values = new FormData(form);
     setBusy(true);
     setError("");
     setNotice("");
     try {
+      const paymentDate = String(values.get("paymentDate") ?? "");
+      const paymentAmount = String(values.get("paymentAmount") ?? "");
+      const actualTransactionKey = String(
+        values.get("actualTransactionKey") ?? "",
+      );
+      if (
+        (paymentDate || paymentAmount || actualTransactionKey) &&
+        (!paymentDate || !paymentAmount || paymentDate.slice(0, 7) !== month)
+      )
+        throw Error(
+          "Enter a payment date in the selected month and its known amount, or clear all payment fields.",
+        );
+      const payments = [
+        ...(row.payments ?? []).filter(
+          (p: any) => p.date.slice(0, 7) !== month,
+        ),
+        ...(paymentDate
+          ? [
+              {
+                date: paymentDate,
+                amount: paymentAmount,
+                ...(actualTransactionKey ? { actualTransactionKey } : {}),
+              },
+            ]
+          : []),
+      ];
       await api("/bill-plan", {
         ...row,
         name: values.get("name"),
         accountName: values.get("accountName"),
         amount: values.get("amount"),
+        amountMode: values.get("amountMode"),
+        planningEstimate: values.get("planningEstimate"),
+        expenseType: values.get("expenseType"),
+        creditAccountId: values.get("creditAccountId"),
+        payments,
         currency: values.get("currency"),
         frequency: values.get("frequency"),
         day: values.get("day") ? Number(values.get("day")) : null,
@@ -104,6 +143,16 @@ export default function BillPlan({
         From your Bills worksheet. These are your plans; transaction patterns
         are shown separately and are not added to these totals.
       </p>
+      <label>
+        Planning month
+        <input
+          type="month"
+          value={month}
+          onChange={(e) => {
+            if (validMonth(e.target.value)) setMonth(e.target.value);
+          }}
+        />
+      </label>
       {error && (
         <p role="alert" className="error">
           {error}
@@ -129,19 +178,46 @@ export default function BillPlan({
               ? "The plan is incomplete until you review the remaining entries."
               : ""}
           </p>
+          <section aria-label="Planned expenses">
+            <h3>Planned expenses · {month}</h3>
+            {data.expenses.map((t: any) => (
+              <p key={t.currency}>
+                <strong>{money(t.total, t.currency)}</strong> · includes{" "}
+                {money(t.estimated, t.currency)} in estimates · {t.unknown}{" "}
+                unknown amounts
+              </p>
+            ))}
+            <p>
+              Credit card payments are account funding, not new expenses.
+              Purchases count as expenses. This covers confirmed bill plans, not
+              all household spending.
+            </p>
+          </section>
           {data.totals.map((t: any) => (
             <article className="bill" key={`${t.accountName}:${t.currency}`}>
               <h3>
                 {t.accountName} · {t.currency}
               </h3>
-              <p>Regular monthly commitments: {money(t.monthly, t.currency)}</p>
+              <p>
+                Known amounts: {money(t.known, t.currency)} · Estimates:{" "}
+                {money(t.estimated, t.currency)}
+              </p>
+              <p>
+                {t.unknown} bills with unknown amounts
+                {t.unknown > 0 ? " · funding total is incomplete" : ""}
+              </p>
+              <p>Monthly commitments: {money(t.monthly, t.currency)}</p>
+              <p>
+                Includes {money(t.repayments, t.currency)} in credit card
+                payments (not new expenses).
+              </p>
               <p>
                 Monthly set-aside for less frequent bills:{" "}
                 {money(t.setAside, t.currency)}
               </p>
               <p>
                 <strong>
-                  Total to fund per month: {money(t.total, t.currency)}
+                  Funding subtotal for {month}: {money(t.total, t.currency)}
                 </strong>
               </p>
             </article>
@@ -195,7 +271,19 @@ export default function BillPlan({
                       transfer to avoid counting the funded bill twice.
                     </p>
                   )}
-                  {Number(r.amount) === 0 && (
+                  <p>
+                    {r.resolvedAmount.amount === null
+                      ? "Amount unknown"
+                      : `${money(r.resolvedAmount.amount, r.currency)} · ${r.resolvedAmount.basis === "actual" ? "Actual paid" : r.resolvedAmount.basis === "known" ? "Known payment" : r.resolvedAmount.basis === "estimate" ? "Planning estimate" : "Monthly equivalent"}`}{" "}
+                    · {month}
+                  </p>
+                  {r.resolvedAmount.missingActual && (
+                    <p>
+                      Linked transaction is unavailable. The total uses the
+                      saved payment amount; verify the evidence.
+                    </p>
+                  )}
+                  {Number(r.amount) === 0 && r.amountMode !== "variable" && (
                     <p>
                       Zero amount: verify whether this commitment is still
                       active.
@@ -217,6 +305,7 @@ export default function BillPlan({
                     </p>
                   )}
                   <form
+                    key={`${r.id}:${month}`}
                     className="plan-form"
                     onSubmit={(e) => {
                       e.preventDefault();
@@ -241,19 +330,31 @@ export default function BillPlan({
                       />
                     </label>
                     <label>
-                      Amount per payment
+                      Amount certainty
+                      <select
+                        name="amountMode"
+                        defaultValue={r.amountMode ?? "fixed"}
+                      >
+                        <option value="fixed">Fixed amount</option>
+                        <option value="variable">
+                          Variable monthly amount (may be unknown)
+                        </option>
+                      </select>
+                    </label>
+                    <label>
+                      Fixed amount per payment
                       <input
                         name="amount"
                         defaultValue={r.amount}
                         inputMode="decimal"
                         pattern="[0-9]+\.[0-9]{2}"
-                        required
                         aria-describedby={`amount-${r.id}`}
                       />
                     </label>
                     <p id={`amount-${r.id}`}>
-                      Use two decimal places. Enter the full payment amount, not
-                      its monthly set-aside.
+                      Use two decimal places. For variable monthly bills, this
+                      fixed amount is ignored and may be blank. Zero means a
+                      known zero, not an unknown payment.
                     </p>
                     <label>
                       Currency
@@ -281,6 +382,50 @@ export default function BillPlan({
                         ))}
                       </select>
                     </label>
+                    <label>
+                      Planning estimate (optional, variable bills)
+                      <input
+                        name="planningEstimate"
+                        defaultValue={r.planningEstimate ?? ""}
+                        inputMode="decimal"
+                        pattern="[0-9]+\.[0-9]{2}"
+                      />
+                    </label>
+                    <label>
+                      Counts as
+                      <select
+                        name="expenseType"
+                        defaultValue={r.expenseType ?? "expense"}
+                      >
+                        <option value="expense">Expense</option>
+                        <option value="creditPayment">
+                          Credit card payment (funding only)
+                        </option>
+                      </select>
+                    </label>
+                    <label>
+                      Credit card being paid (optional)
+                      <select
+                        name="creditAccountId"
+                        defaultValue={r.creditAccountId ?? ""}
+                      >
+                        <option value="">Card account not linked</option>
+                        {r.creditAccountId &&
+                          !data.creditAccounts.some(
+                            (a: any) => a.id === r.creditAccountId,
+                          ) && (
+                            <option value={r.creditAccountId}>
+                              Previously selected card · unavailable
+                            </option>
+                          )}
+                        {data.creditAccounts.map((a: any) => (
+                          <option key={a.id} value={a.id}>
+                            {a.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <PaymentFields row={r} month={month} data={data} />
                     <label>
                       Payment day (optional)
                       <input

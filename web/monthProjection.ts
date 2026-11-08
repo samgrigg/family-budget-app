@@ -50,7 +50,7 @@ export function buildOverview(bills: any[]) {
         monthEnd: bill.frequency === "Monthly" && monthEnd,
         approximate,
       });
-    if (bill.currency)
+    if (bill.currency && bill.expenseType !== "creditPayment")
       totals.set(
         bill.currency,
         (totals.get(bill.currency) ?? 0) + Number(bill.typical) * factor,

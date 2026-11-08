@@ -143,3 +143,78 @@ it("includes unconfirmed spending and deposits, global-hidden accounts, and inac
   ).toBe(true);
   s.db.close();
 });
+
+import { installBillPlan, savePlan } from "../server/bill-plan";
+import { transactionKey } from "../server/transfers";
+it.each([
+  { linked: true, cardCredit: false },
+  { linked: false, cardCredit: true },
+])(
+  "routes explicitly linked repayments without new expenses or inflows ($linked, $cardCredit)",
+  ({ linked, cardCredit }) => {
+    const s = new Store(":memory:", Buffer.alloc(32), "sandbox");
+    s.connect("c", "token", [
+      { account_id: "checking", name: "Checking", type: "depository" },
+      { account_id: "card", name: "Card", type: "credit" },
+    ]);
+    for (const [id, account, name, amount] of [
+      ["purchase", "card", "Groceries", "100.00"],
+      [
+        "payment",
+        "checking",
+        cardCredit ? "Online payment" : "Online debit",
+        "100.00",
+      ],
+      ...(cardCredit
+        ? [["receipt", "card", "Autopay payment", "-100.00"]]
+        : []),
+    ])
+      s.db
+        .prepare("INSERT INTO transactions VALUES(?,?,?,?,?,?,?,?,?)")
+        .run(s.env, "c", id, account, "2026-11-23", name, amount, "USD", 0);
+    installBills(s);
+    installBillPlan(s);
+    const actual = s.repository.history("all").find((t) => t.id === "payment")!;
+    savePlan(
+      s,
+      {
+        id: "card-bill",
+        name: "Card payment",
+        accountName: "Checking",
+        currency: "USD",
+        amount: "",
+        amountMode: "variable",
+        frequency: "Monthly",
+        day: 23,
+        kind: "bill",
+        status: "confirmed",
+        notes: "",
+        expenseType: "creditPayment",
+        creditAccountId: linked
+          ? s.accountList().find((a) => a.id === "card")!.canonicalAccountId
+          : "",
+        payments: [
+          {
+            date: "2026-11-23",
+            amount: "100.00",
+            actualTransactionKey: transactionKey(actual),
+          },
+        ],
+      },
+      [],
+    );
+    const g = flowState(s, "2026-11", "USD");
+    expect(g.links.filter((e) => e.kind === "Other inflow")).toHaveLength(0);
+    expect(
+      g.links
+        .filter((e) => e.kind === "Spending")
+        .reduce((n, e) => n + e.amount, 0),
+    ).toBe(100);
+    expect(
+      g.links
+        .filter((e) => e.kind === "Debt payment")
+        .reduce((n, e) => n + e.amount, 0),
+    ).toBe(100);
+    s.db.close();
+  },
+);

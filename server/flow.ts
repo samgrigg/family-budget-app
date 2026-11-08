@@ -1,3 +1,4 @@
+import { storedPlans, paymentEvidence } from "./bill-plan";
 import { billState } from "./bills";
 import { householdEmployer, identifyEmployer, incomeState } from "./income";
 import { transactionKey } from "./transfers";
@@ -80,7 +81,14 @@ export function buildFlow(
         )
       : 0;
     add(`after:${a}`, "savings", savings, "Savings");
-    add(`after:${a}`, "remaining", residual - savings, "Unallocated");
+    if (a.startsWith("untracked-credit:"))
+      add(
+        `after:${a}`,
+        `bill:repayment:${a}`,
+        residual,
+        "Debt repayment without purchase history",
+      );
+    else add(`after:${a}`, "remaining", residual - savings, "Unallocated");
   }
   const names = new Map<string, string>([
     ["funding", "Other funding / starting funds"],
@@ -90,6 +98,12 @@ export function buildFlow(
   for (const a of accounts)
     for (const stage of ["before", "after"])
       names.set(`${stage}:${a}`, labels.get(a) ?? "Account");
+  for (const a of accounts)
+    if (a.startsWith("untracked-credit:"))
+      names.set(
+        `bill:repayment:${a}`,
+        "Credit card repayment · purchase history unavailable",
+      );
   for (const b of incomes) names.set(`income:${b.key}`, b.name);
   for (const b of bills) names.set(`bill:${b.key}`, b.name);
   const edges = [...links.values()];
@@ -166,6 +180,63 @@ export function flowState(store: Store, month: string, currency: string) {
       used.add(transactionKey(p.out));
       used.add(transactionKey(p.into));
     }
+  // Explicitly linked posted repayments are movements, never a second purchase.
+  const evidence = paymentEvidence(store);
+  for (const plan of storedPlans(store).filter(
+    (p) =>
+      p.status === "confirmed" &&
+      p.kind === "bill" &&
+      p.expenseType === "creditPayment",
+  )) {
+    for (const payment of plan.payments ?? []) {
+      const out = payment.actualTransactionKey
+        ? evidence.get(payment.actualTransactionKey)
+        : undefined;
+      if (
+        !out ||
+        out.currency !== plan.currency ||
+        out.account_type !== "depository" ||
+        used.has(transactionKey(out))
+      )
+        continue;
+      const availableCard =
+        plan.creditAccountId &&
+        store
+          .accountList()
+          .some(
+            (a) =>
+              a.canonicalAccountId === plan.creditAccountId &&
+              a.type === "credit",
+          );
+      const destination = availableCard
+        ? plan.creditAccountId!
+        : `untracked-credit:${plan.id}`;
+      const matching = rows.filter(
+        (t) =>
+          t.canonicalAccountId === destination &&
+          t.currency === out.currency &&
+          Number(t.amount) === -Number(out.amount) &&
+          Math.abs(Date.parse(t.date) - Date.parse(out.date)) <= 5 * 86400000 &&
+          !used.has(transactionKey(t)),
+      );
+      const into =
+        matching.length === 1
+          ? matching[0]
+          : {
+              ...out,
+              id: `planned-card:${plan.id}:${payment.date}`,
+              canonicalTransactionId: `planned-card:${plan.id}:${payment.date}`,
+              canonicalAccountId: destination,
+              amount: String(-Number(out.amount)),
+              account_type: "credit",
+            };
+      if (!availableCard)
+        labels.set(destination, `Untracked credit card · ${plan.name}`);
+      pairList.push({ out, into, kind: "Debt payment" } as any);
+      used.add(transactionKey(out));
+      used.add(transactionKey(into));
+    }
+  }
   const incoming = new Map<string, any>(),
     spending = new Map<string, any>();
   const knownIncome = new Map<string, any>(

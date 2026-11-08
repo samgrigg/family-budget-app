@@ -52,3 +52,27 @@ it("illustrates weekly and biweekly occurrences while averaging monthly cost", (
     result.events.filter((e) => e.bill.key === "weekly").length,
   ).toBeGreaterThanOrEqual(4);
 });
+
+it("shows credit repayments on the timeline without adding them to expense estimates", () => {
+  const result = buildOverview([
+    {
+      key: "purchase",
+      name: "Service",
+      currency: "USD",
+      typical: 50,
+      frequency: "Monthly",
+      transactions: [{ date: "2026-11-01" }],
+    },
+    {
+      key: "payment",
+      name: "Card payment",
+      currency: "USD",
+      typical: 100,
+      frequency: "Monthly",
+      expenseType: "creditPayment",
+      transactions: [{ date: "2026-11-23" }],
+    },
+  ]);
+  expect(result.events).toHaveLength(2);
+  expect(result.totals).toEqual([{ currency: "USD", amount: 50 }]);
+});

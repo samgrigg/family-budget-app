@@ -143,3 +143,109 @@ it("rejects inherited object names as frequencies", () => {
   ).toThrow();
   s.db.close();
 });
+
+it("confirms unknown monthly commitments and separates repayment funding from expenses", () => {
+  const s = new Store(":memory:", Buffer.alloc(32), "sandbox");
+  installBillPlan(s);
+  savePlan(
+    s,
+    {
+      ...draft,
+      amount: "",
+      amountMode: "variable",
+      expenseType: "creditPayment",
+    },
+    [],
+  );
+  const state = planState(s, [], [], "2026-12");
+  expect(state.totals[0]).toMatchObject({ total: 0, unknown: 1 });
+  expect(state.expenses[0]).toMatchObject({ total: 0, unknown: 0 });
+  savePlan(
+    s,
+    {
+      ...draft,
+      amount: "",
+      amountMode: "variable",
+      expenseType: "creditPayment",
+      planningEstimate: "200.00",
+      payments: [{ date: "2026-12-23", amount: "250.00" }],
+    },
+    [],
+  );
+  expect(planState(s, [], [], "2026-12").totals[0]).toMatchObject({
+    known: 250,
+    estimated: 0,
+    total: 250,
+  });
+  expect(planState(s, [], [], "2027-01").totals[0]).toMatchObject({
+    known: 0,
+    estimated: 200,
+    total: 200,
+  });
+  expect(planState(s, [], [], "2026-12").expenses[0].total).toBe(0);
+  s.db.close();
+});
+it("rejects impossible dates, duplicate cycles and fabricated actual payment evidence", () => {
+  const s = new Store(":memory:", Buffer.alloc(32), "sandbox");
+  installBillPlan(s);
+  for (const payments of [
+    [{ date: "2026-02-30", amount: "200.00" }],
+    [
+      { date: "2026-12-01", amount: "200.00" },
+      { date: "2026-12-23", amount: "210.00" },
+    ],
+    [{ date: "2026-12-23", amount: "200.00", actualTransactionKey: "fake" }],
+  ])
+    expect(() => savePlan(s, { ...draft, payments }, [])).toThrow();
+  s.db.close();
+});
+
+import { annotateRepayments } from "../server/bill-plan";
+import { transactionKey } from "../server/transfers";
+import { groupKey } from "../server/bills";
+it("persists payment cycles, rejects evidence reuse and annotates observed repayments from explicit evidence", () => {
+  const s = new Store(":memory:", Buffer.alloc(32), "sandbox");
+  installBillPlan(s);
+  s.connect("c", "token", [
+    { account_id: "a", name: "Checking", type: "depository" },
+  ]);
+  s.db
+    .prepare("INSERT INTO transactions VALUES(?,?,?,?,?,?,?,?,?)")
+    .run(
+      s.env,
+      "c",
+      "payment",
+      "a",
+      "2026-12-23",
+      "Card payment",
+      "260.00",
+      "USD",
+      0,
+    );
+  const actual = s.repository.history("all")[0];
+  const key = transactionKey(actual);
+  const payment = {
+    date: "2026-12-23",
+    amount: "250.00",
+    actualTransactionKey: key,
+  };
+  const plan = {
+    ...draft,
+    amount: "",
+    amountMode: "variable",
+    expenseType: "creditPayment",
+    payments: [payment, { date: "2027-01-23", amount: "300.00" }],
+  };
+  savePlan(s, plan, []);
+  expect(planState(s, [], [], "2026-12").totals[0].total).toBe(260);
+  expect(planState(s, [], [], "2027-01").totals[0].total).toBe(300);
+  expect(planState(s, [], [], "2026-12").records[0].payments).toHaveLength(2);
+  expect(() =>
+    savePlan(s, { ...plan, id: "other", name: "Other card" }, []),
+  ).toThrow(/already linked/);
+  expect(
+    annotateRepayments(s, { saved: [{ key: groupKey(actual) }] }).saved[0]
+      .expenseType,
+  ).toBe("creditPayment");
+  s.db.close();
+});
