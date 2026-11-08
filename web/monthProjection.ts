@@ -1,3 +1,4 @@
+import { isCreditCardPayment } from "../shared/billAmounts";
 // An abstract month has 31 positions; short months use their final day instead.
 export function buildOverview(bills: any[]) {
   const events: any[] = [],
@@ -50,7 +51,7 @@ export function buildOverview(bills: any[]) {
         monthEnd: bill.frequency === "Monthly" && monthEnd,
         approximate,
       });
-    if (bill.currency && bill.expenseType !== "creditPayment")
+    if (bill.currency && !isCreditCardPayment(bill.expenseType))
       totals.set(
         bill.currency,
         (totals.get(bill.currency) ?? 0) + Number(bill.typical) * factor,

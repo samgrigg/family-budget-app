@@ -147,18 +147,19 @@ it("includes unconfirmed spending and deposits, global-hidden accounts, and inac
 import { installBillPlan, savePlan } from "../server/bill-plan";
 import { transactionKey } from "../server/transfers";
 it.each([
-  { linked: true, cardCredit: false },
-  { linked: false, cardCredit: true },
+  { linked: true, cardCredit: false, debt: false },
+  { linked: false, cardCredit: true, debt: false },
+  { linked: true, cardCredit: true, debt: true },
 ])(
   "routes explicitly linked repayments without new expenses or inflows ($linked, $cardCredit)",
-  ({ linked, cardCredit }) => {
+  ({ linked, cardCredit, debt }) => {
     const s = new Store(":memory:", Buffer.alloc(32), "sandbox");
     s.connect("c", "token", [
       { account_id: "checking", name: "Checking", type: "depository" },
       { account_id: "card", name: "Card", type: "credit" },
     ]);
     for (const [id, account, name, amount] of [
-      ["purchase", "card", "Groceries", "100.00"],
+      ...(debt ? [] : [["purchase", "card", "Groceries", "100.00"]]),
       [
         "payment",
         "checking",
@@ -189,7 +190,7 @@ it.each([
         kind: "bill",
         status: "confirmed",
         notes: "",
-        expenseType: "creditPayment",
+        expenseType: debt ? "creditDebtPayoff" : "creditPayment",
         creditAccountId: linked
           ? s.accountList().find((a) => a.id === "card")!.canonicalAccountId
           : "",
@@ -209,10 +210,10 @@ it.each([
       g.links
         .filter((e) => e.kind === "Spending")
         .reduce((n, e) => n + e.amount, 0),
-    ).toBe(100);
+    ).toBe(debt ? 0 : 100);
     expect(
       g.links
-        .filter((e) => e.kind === "Debt payment")
+        .filter((e) => e.kind === (debt ? "Debt payoff" : "Debt payment"))
         .reduce((n, e) => n + e.amount, 0),
     ).toBe(100);
     s.db.close();

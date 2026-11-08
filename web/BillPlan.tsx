@@ -211,9 +211,24 @@ export default function BillPlan({
               </p>
             ))}
             <p>
-              Credit card payments are account funding, not new expenses.
-              Purchases count as expenses. This covers confirmed bill plans, not
-              all household spending.
+              Payments for card purchases are account funding; debt payoff is a
+              separate commitment. Neither is a new expense. Purchases count as
+              expenses. This covers confirmed bill plans, not all household
+              spending.
+            </p>
+            <h3>Debt payoff · {month}</h3>
+            {(data.debtPayoff ?? []).map((t: any) => (
+              <p key={t.currency}>
+                <strong>{money(t.total, t.currency)}</strong> · includes{" "}
+                {money(t.estimated, t.currency)} in estimates · {t.unknown}{" "}
+                unknown amounts
+              </p>
+            ))}
+            <p>
+              Whole payments toward existing credit card balances, including
+              balance transfers. Principal, interest and fees are not split.
+              Expenses, debt payoff and funding are separate views; do not add
+              funding to the other totals.
             </p>
           </section>
           <div hidden={activeTab === "expenses"}>
@@ -246,7 +261,11 @@ export default function BillPlan({
                 <p>Monthly commitments: {money(t.monthly, t.currency)}</p>
                 <p>
                   Includes {money(t.repayments, t.currency)} in credit card
-                  payments (not new expenses).
+                  payments for purchases (not new expenses).
+                </p>
+                <p>
+                  Includes {money(t.debtPayoff ?? 0, t.currency)} in debt payoff
+                  commitments.
                 </p>
                 <p>
                   Monthly set-aside for less frequent bills:{" "}

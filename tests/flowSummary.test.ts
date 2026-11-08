@@ -57,3 +57,31 @@ it("keeps unmatched categories and empty graphs explicit", () => {
   expect(spendingGroup("Unrecognized", "Spending")).toBe("Other spending");
   expect(summarizeFlow({ nodes: [], links: [] }).nodes).toHaveLength(0);
 });
+
+it("keeps debt payoff separate from purchase spending in the household summary", () => {
+  const result = summarizeFlow({
+    nodes: [
+      { id: "before:a", name: "Checking", column: 1 },
+      { id: "after:a", name: "Checking", column: 2 },
+      { id: "bill:debt", name: "Balance transfer", column: 3 },
+      { id: "bill:shop", name: "Groceries", column: 3 },
+    ],
+    links: [
+      {
+        source: "after:a",
+        target: "bill:debt",
+        amount: 150,
+        kind: "Debt payoff",
+      },
+      { source: "after:a", target: "bill:shop", amount: 50, kind: "Spending" },
+    ],
+  });
+  expect(
+    result.links
+      .filter((e: any) => e.kind === "Spending")
+      .reduce((n: number, e: any) => n + e.amount, 0),
+  ).toBe(50);
+  expect(result.links.find((e: any) => e.kind === "Debt payoff")?.amount).toBe(
+    150,
+  );
+});

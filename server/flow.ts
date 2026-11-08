@@ -1,3 +1,4 @@
+import { isCreditCardPayment } from "../shared/billAmounts";
 import { storedPlans, paymentEvidence } from "./bill-plan";
 import { billState } from "./bills";
 import { householdEmployer, identifyEmployer, incomeState } from "./income";
@@ -182,11 +183,12 @@ export function flowState(store: Store, month: string, currency: string) {
     }
   // Explicitly linked posted repayments are movements, never a second purchase.
   const evidence = paymentEvidence(store);
+  const debtPayoffs: any[] = [];
   for (const plan of storedPlans(store).filter(
     (p) =>
       p.status === "confirmed" &&
       p.kind === "bill" &&
-      p.expenseType === "creditPayment",
+      isCreditCardPayment(p.expenseType),
   )) {
     for (const payment of plan.payments ?? []) {
       const out = payment.actualTransactionKey
@@ -195,10 +197,37 @@ export function flowState(store: Store, month: string, currency: string) {
       if (
         !out ||
         out.currency !== plan.currency ||
-        out.account_type !== "depository" ||
-        used.has(transactionKey(out))
+        out.account_type !== "depository"
       )
         continue;
+      if (plan.expenseType === "creditDebtPayoff") {
+        const matched = pairList.findIndex(
+          (p) => transactionKey(p.out) === transactionKey(out),
+        );
+        if (used.has(transactionKey(out)) && matched < 0) continue;
+        if (matched >= 0) pairList.splice(matched, 1);
+        else if (plan.creditAccountId) {
+          const credits = rows.filter(
+            (t) =>
+              t.canonicalAccountId === plan.creditAccountId &&
+              t.currency === out.currency &&
+              Number(t.amount) === -Number(out.amount) &&
+              Math.abs(Date.parse(t.date) - Date.parse(out.date)) <=
+                5 * 86400000 &&
+              !used.has(transactionKey(t)),
+          );
+          if (credits.length === 1) used.add(transactionKey(credits[0]));
+        }
+        debtPayoffs.push({
+          key: `debt-payoff:${plan.id}:${payment.date}`,
+          name: plan.name,
+          kind: "Debt payoff",
+          transactions: [out],
+        });
+        used.add(transactionKey(out));
+        continue;
+      }
+      if (used.has(transactionKey(out))) continue;
       const availableCard =
         plan.creditAccountId &&
         store
@@ -307,7 +336,10 @@ export function flowState(store: Store, month: string, currency: string) {
   );
   const graph = buildFlow(
     [...incoming.values()],
-    [...spending.values()],
+    [
+      ...spending.values(),
+      ...debtPayoffs.filter((b) => b.transactions.some(inMonth)),
+    ],
     transfers,
     labels,
     savingsAccounts,

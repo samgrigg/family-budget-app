@@ -1,3 +1,4 @@
+import { isCreditCardPayment } from "../shared/billAmounts";
 import { useState } from "react";
 export default function BillClassificationFields({
   expenseType = "expense",
@@ -20,12 +21,13 @@ export default function BillClassificationFields({
           onChange={(e) => setClassification(e.target.value)}
         >
           <option value="expense">Expense</option>
-          <option value="creditPayment">
-            Credit card payment (funding only)
+          <option value="creditPayment">Credit card payment (purchases)</option>
+          <option value="creditDebtPayoff">
+            Credit card payment (debt payoff)
           </option>
         </select>
       </label>
-      {classification === "creditPayment" && (
+      {isCreditCardPayment(classification) && (
         <label>
           Credit card being paid (optional)
           <select

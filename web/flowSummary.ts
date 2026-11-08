@@ -66,15 +66,17 @@ export function summarizeFlow(data: any) {
     }
     if (b?.column === 3) {
       const group =
-        e.kind === "Debt repayment without purchase history"
-          ? "Credit card repayments · purchase history unavailable"
-          : b.id === "savings"
-            ? "Savings · modeled"
-            : b.id === "remaining"
-              ? "Other spending / retained funds"
-              : e.kind === "Boundary outflow"
-                ? "To hidden accounts"
-                : spendingGroup(b.name, e.kind);
+        e.kind === "Debt payoff"
+          ? "Debt payoff"
+          : e.kind === "Debt repayment without purchase history"
+            ? "Credit card repayments · purchase history unavailable"
+            : b.id === "savings"
+              ? "Savings · modeled"
+              : b.id === "remaining"
+                ? "Other spending / retained funds"
+                : e.kind === "Boundary outflow"
+                  ? "To hidden accounts"
+                  : spendingGroup(b.name, e.kind);
       const key = `group:${group}`;
       nodes.set(key, { id: key, name: group, column: 2 });
       add(

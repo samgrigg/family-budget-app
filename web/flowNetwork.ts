@@ -34,6 +34,7 @@ export function flowNetwork(data: any, hidden: string[] = []) {
         "Bill",
         "Spending",
         "Debt payment",
+        "Debt payoff",
         "Debt repayment without purchase history",
         "Internal transfer",
       ].includes(e.kind),

@@ -102,3 +102,26 @@ it("falls back when corrected evidence has a different currency or a non-bank re
     ),
   ).toMatchObject({ amount: 250, basis: "known", missingActual: true });
 });
+
+it("requires bank-account actual evidence for debt payoff too", () => {
+  const plan = {
+    ...bill,
+    currency: "USD",
+    expenseType: "creditDebtPayoff",
+    payments: [
+      { date: "2026-12-23", amount: "150.00", actualTransactionKey: "actual" },
+    ],
+  };
+  expect(
+    resolveBillAmount(
+      plan,
+      "2026-12",
+      new Map([
+        [
+          "actual",
+          { amount: "999.00", currency: "USD", account_type: "credit" },
+        ],
+      ]),
+    ),
+  ).toMatchObject({ amount: 150, basis: "known", missingActual: true });
+});

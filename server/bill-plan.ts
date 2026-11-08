@@ -5,6 +5,7 @@ import { billState, groupKey, payee } from "./bills";
 import { transactionKey } from "./transfers";
 import {
   monthlyFactors as factors,
+  isCreditCardPayment,
   resolveBillAmount,
   validMonth,
   type BillPayment,
@@ -25,7 +26,7 @@ export type Plan = {
   amountMode?: "fixed" | "variable";
   planningEstimate?: string;
   payments?: BillPayment[];
-  expenseType?: "expense" | "creditPayment";
+  expenseType?: "expense" | "creditPayment" | "creditDebtPayoff";
   creditAccountId?: string;
 };
 export function installBillPlan(store: Store) {
@@ -78,6 +79,7 @@ export function fundingTotals(
       estimated: number;
       unknown: number;
       repayments: number;
+      debtPayoff: number;
     }
   >();
   for (const r of records) {
@@ -98,6 +100,7 @@ export function fundingTotals(
       estimated: 0,
       unknown: 0,
       repayments: 0,
+      debtPayoff: 0,
     };
     const result = resolveBillAmount(r, month, actuals);
     if (result.amount === null) g.unknown++;
@@ -109,15 +112,17 @@ export function fundingTotals(
       else g.monthly += result.amount;
       g.total += result.amount;
       if (r.expenseType === "creditPayment") g.repayments += result.amount;
+      if (r.expenseType === "creditDebtPayoff") g.debtPayoff += result.amount;
     }
     groups.set(key, g);
   }
   return [...groups.values()];
 }
-export function expenseTotals(
+export function categoryTotals(
   records: Plan[],
   month: string,
   actuals: Map<string, { amount: string }>,
+  category: "expenses" | "debtPayoff",
 ) {
   const currencies = [
     ...new Set(
@@ -127,7 +132,11 @@ export function expenseTotals(
     ),
   ];
   const totals = fundingTotals(
-    records.filter((r) => r.expenseType !== "creditPayment"),
+    records.filter((r) =>
+      category === "debtPayoff"
+        ? r.expenseType === "creditDebtPayoff"
+        : !isCreditCardPayment(r.expenseType),
+    ),
     month,
     actuals,
   );
@@ -178,7 +187,8 @@ export function planState(
     records,
     month,
     totals: fundingTotals(records, month, actuals),
-    expenses: expenseTotals(records, month, actuals),
+    expenses: categoryTotals(records, month, actuals, "expenses"),
+    debtPayoff: categoryTotals(records, month, actuals, "debtPayoff"),
     creditAccounts: accounts
       .filter((a) => a.type === "credit")
       .map((a) => ({
@@ -246,7 +256,7 @@ export function savePlan(
     throw Error("Choose a fixed or variable amount.");
   if (
     r.expenseType !== undefined &&
-    !["expense", "creditPayment"].includes(r.expenseType)
+    !["expense", "creditPayment", "creditDebtPayoff"].includes(r.expenseType)
   )
     throw Error("Choose an expense or credit card payment.");
   if (
@@ -323,7 +333,7 @@ export function savePlan(
         !unchangedMissing &&
         (!t ||
           t.currency !== r.currency ||
-          (r.expenseType === "creditPayment" &&
+          (isCreditCardPayment(r.expenseType) &&
             t.account_type !== "depository"))
       )
         throw Error(
@@ -441,24 +451,24 @@ export function installBillPlanApi(app: Express, store: Store, drafts: Plan[]) {
 
 export function annotateRepayments(store: Store, state: any) {
   const evidence = paymentEvidence(store),
-    groups = new Set<string>();
+    groups = new Map<string, string>();
   for (const plan of storedPlans(store).filter(
     (p) =>
       p.status === "confirmed" &&
       p.kind === "bill" &&
-      p.expenseType === "creditPayment",
+      isCreditCardPayment(p.expenseType),
   ))
     for (const p of plan.payments ?? []) {
       const t = p.actualTransactionKey
         ? evidence.get(p.actualTransactionKey)
         : undefined;
       if (t && t.currency === plan.currency && t.account_type === "depository")
-        groups.add(groupKey(t));
+        groups.set(groupKey(t), plan.expenseType!);
     }
   return {
     ...state,
     saved: state.saved.map((b: any) =>
-      groups.has(b.key) ? { ...b, expenseType: "creditPayment" } : b,
+      groups.has(b.key) ? { ...b, expenseType: groups.get(b.key) } : b,
     ),
   };
 }

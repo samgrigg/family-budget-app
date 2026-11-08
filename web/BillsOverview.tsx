@@ -1,3 +1,4 @@
+import { isCreditCardPayment } from "../shared/billAmounts";
 import BillPlan from "./BillPlan";
 import DataIssues from "./DataIssues";
 import IncomeReview from "./IncomeReview";
@@ -47,10 +48,12 @@ export default function BillsOverview({
         <strong>{money(b.typical, b.currency)}</strong>
       </summary>
       <div className="overview-bill-body">
-        {b.expenseType === "creditPayment" && (
+        {isCreditCardPayment(b.expenseType) && (
           <p>
-            Credit card repayment · account funding, excluded from expense
-            estimate
+            {b.expenseType === "creditDebtPayoff"
+              ? "Credit card debt payoff · separate debt commitment"
+              : "Credit card purchases repayment · account funding"}{" "}
+            · excluded from expense estimate
           </p>
         )}
         <p>

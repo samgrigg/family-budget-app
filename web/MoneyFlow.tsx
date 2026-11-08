@@ -130,6 +130,7 @@ export default function MoneyFlow({ api }: any) {
     Spending: "#94634b",
     "Other inflow": "#6d7c62",
     "Debt payment": "#9a6840",
+    "Debt payoff": "#9a6840",
     "Internal transfer": "#3569a6",
   };
   const paths = network.links.map((e: any) => {
@@ -191,7 +192,8 @@ export default function MoneyFlow({ api }: any) {
         Explicitly linked credit card repayments are movements rather than new
         spending. If only the bank debit is available, the selected card route
         is modeled; an unlinked card destination is labeled separately with
-        purchase history unavailable.
+        purchase history unavailable. Debt payoff is shown separately as a whole
+        payment toward an existing balance.
       </p>
       {error && (
         <p role="alert" className="error">

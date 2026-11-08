@@ -1,3 +1,5 @@
+export const isCreditCardPayment = (type: unknown) =>
+  type === "creditPayment" || type === "creditDebtPayoff";
 export type BillPayment = {
   date: string;
   amount: string;
@@ -37,7 +39,7 @@ export function resolveBillAmount(
   const actual =
     candidate &&
     (!plan.currency || candidate.currency === plan.currency) &&
-    (plan.expenseType !== "creditPayment" ||
+    (!isCreditCardPayment(plan.expenseType) ||
       candidate.account_type === "depository")
       ? candidate
       : undefined;

@@ -256,3 +256,48 @@ it("persists payment cycles, rejects evidence reuse and annotates observed repay
   ).toBe("creditPayment");
   s.db.close();
 });
+
+it("separates debt payoff from expenses while keeping the whole payment in account funding", () => {
+  const s = new Store(":memory:", Buffer.alloc(32), "sandbox");
+  installBillPlan(s);
+  savePlan(
+    s,
+    {
+      ...draft,
+      id: "debt",
+      name: "Balance transfer card",
+      amount: "150.00",
+      expenseType: "creditDebtPayoff",
+    },
+    [],
+  );
+  const state = planState(s, [], [], "2026-11");
+  expect(state.totals[0]).toMatchObject({
+    total: 150,
+    debtPayoff: 150,
+    repayments: 0,
+  });
+  expect(state.expenses[0].total).toBe(0);
+  expect(state.debtPayoff[0]).toMatchObject({
+    total: 150,
+    estimated: 0,
+    unknown: 0,
+  });
+  savePlan(
+    s,
+    {
+      ...draft,
+      id: "debt",
+      name: "Balance transfer card",
+      amount: "",
+      amountMode: "variable",
+      expenseType: "creditDebtPayoff",
+    },
+    [],
+  );
+  expect(planState(s, [], [], "2026-11").debtPayoff[0]).toMatchObject({
+    total: 0,
+    unknown: 1,
+  });
+  s.db.close();
+});
