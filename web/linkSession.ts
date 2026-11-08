@@ -1,11 +1,19 @@
-export type LinkAction = {
-  mode: "new" | "repair" | "select_accounts";
-  sourceId?: string;
+interface LinkContext {
   environment: string;
   phase: "link" | "verify";
   linkToken?: string;
   expiresAt: number;
-};
+}
+export type LinkAction = LinkContext &
+  (
+    | { mode: "new"; sourceId?: never; operationId?: never }
+    | {
+        mode: "repair" | "select_accounts";
+        sourceId: string;
+        operationId?: never;
+      }
+    | { mode: "replacement"; sourceId: string; operationId: string }
+  );
 type SessionStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 const key = "budget_plaid_action";
 export function saveLinkAction(storage: SessionStorage, action: LinkAction) {
@@ -31,9 +39,13 @@ export function readLinkAction(
   }
   if (
     !action ||
-    !["new", "repair", "select_accounts"].includes(action.mode) ||
+    !["new", "repair", "select_accounts", "replacement"].includes(
+      action.mode,
+    ) ||
     !["link", "verify"].includes(action.phase) ||
-    (action.mode !== "new" && typeof action.sourceId !== "string")
+    (action.mode !== "new" && typeof action.sourceId !== "string") ||
+    (action.mode === "replacement" &&
+      (typeof action.operationId !== "string" || !action.operationId))
   ) {
     cancelLinkAction(storage);
     throw Error(
@@ -65,6 +77,14 @@ export async function completeLinkAction(
   publicToken: string,
   api: (path: string, body: any) => Promise<any>,
 ) {
+  if (action.mode === "replacement") {
+    // On a lost response the server operation, not a cached public token, tells us what saved.
+    cancelLinkAction(storage);
+    return api(
+      `/source-replacements/${encodeURIComponent(action.operationId!)}/exchange`,
+      { public_token: publicToken },
+    );
+  }
   if (action.mode === "new") {
     // Public tokens are never persisted, including when exchange fails.
     cancelLinkAction(storage);

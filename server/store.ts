@@ -45,8 +45,11 @@ export class Store {
     this.repository = new AccountRepository(this.db, this.env);
   }
   repository: AccountRepository;
-  connect(id: string, token: string, accounts: any[]) {
+  connect(id: string, token: string, accounts: any[], requestedDays = 90) {
     this.db.transaction(() => {
+      const existed = this.db
+        .prepare("SELECT 1 FROM data_sources WHERE env=? AND id=?")
+        .get(this.env, id);
       this.db
         .prepare(
           "INSERT INTO connections VALUES(?,?,?,NULL,?,NULL) ON CONFLICT(env,id) DO UPDATE SET token=excluded.token",
@@ -54,6 +57,12 @@ export class Store {
         .run(this.env, id, seal(token, this.key), "waiting");
       this.accounts(id, accounts);
       ensureAccountIdentities(this.db);
+      if (!existed)
+        this.db
+          .prepare(
+            "UPDATE data_sources SET requested_days=? WHERE env=? AND id=?",
+          )
+          .run(requestedDays, this.env, id);
     })();
   }
   accounts(id: string, accounts: any[]) {

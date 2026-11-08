@@ -80,7 +80,12 @@ export function installAccountApi(
           recoveryOnly: true,
         });
     }
-    for (const source of sources)
+    for (const source of sources) {
+      source.replacementPending = !!store.db
+        .prepare(
+          "SELECT 1 FROM source_replacements WHERE env=? AND new_source_id=? AND state!='complete'",
+        )
+        .get(store.env, source.id);
       source.accounts = raw
         .filter((a) => a.connection === source.id)
         .map((a) => ({
@@ -88,6 +93,7 @@ export function installAccountApi(
           name: a.name,
           shared: a.shared,
         }));
+    }
     res.json({
       environment: store.env,
       account_redirects: linking.redirects(),
@@ -198,6 +204,11 @@ export function installAccountApi(
         .filter((i) => i.accountId === account.id),
       sources: (sources as any[]).map((source) => ({
         ...source,
+        replacementPending: !!store.db
+          .prepare(
+            "SELECT 1 FROM source_replacements WHERE env=? AND new_source_id=? AND state!='complete'",
+          )
+          .get(store.env, source.id),
         missingAccessAction:
           source.missingAccessCredential && source.status !== "historical"
             ? "Revoke access externally, then confirm using resolve-missing-access."

@@ -18,7 +18,7 @@ function storage() {
     },
   };
 }
-function action(): LinkAction {
+function action(): Extract<LinkAction, { mode: "repair" | "select_accounts" }> {
   return {
     mode: "select_accounts",
     sourceId: "existing/source",
@@ -80,4 +80,21 @@ it("rejects expired OAuth tokens and different environments while preserving ver
     expiresAt: 0,
   });
   expect(readLinkAction(s, "sandbox")!.phase).toBe("verify");
+});
+it("replacement OAuth context keeps operation ID and exchanges only through its operation", async () => {
+  const s = storage(),
+    a = {
+      ...action(),
+      mode: "replacement" as const,
+      operationId: "replace/id",
+    };
+  saveLinkAction(s, a);
+  expect(readLinkAction(s, "sandbox")!.operationId).toBe("replace/id");
+  const paths: string[] = [];
+  await completeLinkAction(s, a, "fixture-public", async (path, body) => {
+    paths.push(path);
+    expect(body.public_token).toBe("fixture-public");
+  });
+  expect(paths).toEqual(["/source-replacements/replace%2Fid/exchange"]);
+  expect(readLinkAction(s, "sandbox")).toBeNull();
 });

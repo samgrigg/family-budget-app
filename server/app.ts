@@ -1,3 +1,4 @@
+import { installReplacementApi } from "./source-replacements";
 import { flowState } from "./flow";
 import { incomeState } from "./income";
 import { transferState, transactionKey } from "./transfers";
@@ -245,7 +246,7 @@ export function createApp(
         products: ["transactions"],
         country_codes: ["US"],
         language: "en",
-        transactions: { days_requested: 90 },
+        transactions: { days_requested: 365 },
         ...(redirectUri ? { redirect_uri: redirectUri } : {}),
       });
       res.json({ link_token: r.link_token });
@@ -268,7 +269,7 @@ export function createApp(
       });
       token = r.access_token;
       itemId = r.item_id;
-      store.connect(r.item_id, token!, []);
+      store.connect(r.item_id, token!, [], 365);
       saved = true;
       res.json(state());
     } catch (e) {
@@ -359,11 +360,9 @@ export function createApp(
   app.post("/api/data-sources/:id/link-token", async (req, res, next) => {
     const id = String(req.params.id);
     if (!["repair", "select_accounts"].includes(req.body?.action))
-      return res
-        .status(400)
-        .json({
-          error: "Choose Repair authorization or Review shared accounts.",
-        });
+      return res.status(400).json({
+        error: "Choose Repair authorization or Review shared accounts.",
+      });
     if (!store.list().some((s) => s.id === id))
       return res.status(404).json({ error: "Source not found." });
     try {
@@ -448,6 +447,15 @@ export function createApp(
     },
   );
   installAccountApi(app, store, () => [...recovery.keys()]);
+  installReplacementApi(
+    app,
+    store,
+    provider,
+    exclusive,
+    syncSource,
+    redirectUri,
+    recovery,
+  );
   // Compatibility alias: disconnect now preserves all local history.
   app.post(
     ["/api/connections/:id/disconnect", "/api/data-sources/:id/disconnect"],

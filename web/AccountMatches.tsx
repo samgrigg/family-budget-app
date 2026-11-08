@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { accountAmount } from "./accountRequests";
-export function MatchReview({ review, disabled, onSubmit, onCancel }: any) {
+export function MatchReview({
+  review,
+  disabled,
+  onSubmit,
+  onCancel,
+  preservePreferences = false,
+}: any) {
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     heading.current?.focus();
@@ -87,16 +93,34 @@ export function MatchReview({ review, disabled, onSubmit, onCancel }: any) {
               required
               maxLength={120}
               placeholder="Choose the account name"
+              defaultValue={preservePreferences ? review.left.name : undefined}
+              readOnly={preservePreferences}
             />
           </label>
           <label>
             Budgeting inclusion
-            <select name="included" required defaultValue="">
+            <select
+              name="included"
+              required
+              defaultValue={
+                preservePreferences ? (review.left.included ? "yes" : "no") : ""
+              }
+            >
               <option value="" disabled>
                 Choose inclusion
               </option>
-              <option value="yes">Include in budgeting</option>
-              <option value="no">Exclude from budgeting</option>
+              <option
+                value="yes"
+                disabled={preservePreferences && !review.left.included}
+              >
+                Include in budgeting
+              </option>
+              <option
+                value="no"
+                disabled={preservePreferences && review.left.included}
+              >
+                Exclude from budgeting
+              </option>
             </select>
           </label>
           <label>
@@ -145,7 +169,9 @@ export function MatchReview({ review, disabled, onSubmit, onCancel }: any) {
                       : ""}
                   </option>
                 ))}
-                <option value="review">Return to review</option>
+                {!preservePreferences && (
+                  <option value="review">Return to review</option>
+                )}
               </select>
             </label>
           ))}
@@ -457,16 +483,29 @@ function PreferredSource({ api, operation, disabled, run }: any) {
         >
           {sources.map((s) => (
             <option
-              disabled={["historical", "revoke_required"].includes(s.status)}
+              disabled={
+                s.replacementPending ||
+                ["historical", "revoke_required"].includes(s.status)
+              }
               key={s.id}
               value={s.id}
             >
-              {s.label || "Data source"} · {s.status}
+              {s.label || "Data source"} ·{" "}
+              {s.replacementPending ? "Pending replacement review" : s.status}
             </option>
           ))}
         </select>
       </label>
-      <button disabled={disabled || !sources.length}>
+      <button
+        disabled={
+          disabled ||
+          !sources.some(
+            (s) =>
+              !s.replacementPending &&
+              !["historical", "revoke_required"].includes(s.status),
+          )
+        }
+      >
         Save preferred source
       </button>
     </form>

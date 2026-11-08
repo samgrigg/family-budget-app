@@ -42,7 +42,7 @@ The server binds to 127.0.0.1 and is intended for use by one person on this comp
 
 **Disconnect & delete** calls Plaid's `/item/remove` before deleting local connection/account/transaction rows. A failed revocation leaves the connection available for retry. SQLite deletion is logical deletion, not guaranteed forensic erasure from disk or backups. Plaid/institution retention policies also apply.
 
-The table shows up to 2,000 stored transactions, newest first. Amounts are stored as decimal text with currency; positive is money out, negative is money in. No totals or floating-point financial arithmetic are performed. Available history depends on the institution; the Link request asks for 90 days.
+The table shows up to 2,000 stored transactions, newest first. Amounts are stored as decimal text with currency; positive is money out, negative is money in. No totals or floating-point financial arithmetic are performed. Available history depends on the institution. New connections request 12 months (365 days); existing sources retain their original 90-day request. Analysis windows and Sync do not request older history. In Data access, Replace for longer history prepares a resumable flow: explicitly revoke old access, authorize a new source, import, confirm account matches or distinct accounts, and reconcile. Saved history stays available during reconnection. Confirmed account links and classifications survive cancellation and can be reviewed/unlinked in Accounts. Replacement imports stay excluded from estimates until final review completes.
 
 ## Checks and production build
 

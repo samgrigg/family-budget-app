@@ -23,6 +23,7 @@ export default function App() {
     [busy, setBusy] = useState(false);
   const [linkAction, setLinkAction] = useState<LinkAction | null>(null);
   const [linkNotice, setLinkNotice] = useState("");
+  const [accountRevision, setAccountRevision] = useState(0);
   const [accountFilter, setAccountFilter] = useState("");
   const [route, setRoute] = useState(location.hash);
   const page =
@@ -65,7 +66,10 @@ export default function App() {
     });
     const data = await r.json();
     if (data.csrf) csrf.current = data.csrf;
-    if (data.connections) setState(data);
+    if (data.connections) {
+      setState(data);
+      setAccountRevision((revision) => revision + 1);
+    }
     if (!r.ok) throw Error(data.error || "Request failed");
     return data;
   }
@@ -102,7 +106,9 @@ export default function App() {
       setLinkNotice(
         action.mode === "new"
           ? "Data source added. History import may still be in progress."
-          : "Authorization checked. Saved history was retained; available updates were imported.",
+          : action.mode === "replacement"
+            ? "Replacement connected. Continue import and account review in Data access."
+            : "Authorization checked. Saved history was retained; available updates were imported.",
       );
     } finally {
       setLinkAction(readLinkAction(sessionStorage, action.environment));
@@ -130,9 +136,17 @@ export default function App() {
         setLinkNotice(
           "Authorization was not completed. Saved history remains available. You can start the action again; any changes made at your bank may still apply.",
         );
+        if (action.mode === "replacement")
+          void run(async () => {
+            await api(
+              `/source-replacements/${encodeURIComponent(action.operationId!)}/cancel`,
+              {},
+            );
+            await api("/state");
+          });
         if (e)
           setError(
-            "Authorization was not completed. Try Repair authorization or Review shared accounts again.",
+            "Authorization was not completed. Resume the action in Manage data access.",
           );
       },
     });
@@ -149,24 +163,36 @@ export default function App() {
     }
     if (current) await openLink(current);
   }
-  async function startLink(mode: LinkAction["mode"], sourceId?: string) {
+  async function startLink(
+    mode: LinkAction["mode"],
+    sourceId?: string,
+    operationId?: string,
+  ) {
     if (linkAction)
       throw Error("Finish or cancel the current authorization action first.");
     setLinkNotice("");
     const { link_token } = await api(
       mode === "new"
         ? "/link-token"
-        : `/data-sources/${encodeURIComponent(sourceId!)}/link-token`,
+        : mode === "replacement"
+          ? `/source-replacements/${encodeURIComponent(operationId!)}/link-token`
+          : `/data-sources/${encodeURIComponent(sourceId!)}/link-token`,
       mode === "new" ? {} : { action: mode },
     );
-    const action: LinkAction = {
-      mode,
-      sourceId,
+    const context = {
       environment: state.environment,
-      phase: "link",
+      phase: "link" as const,
       linkToken: link_token,
-      expiresAt: Date.now() + (mode === "new" ? 4 * 60 : 30) * 60 * 1000,
+      expiresAt:
+        Date.now() +
+        (["new", "replacement"].includes(mode) ? 4 * 60 : 30) * 60 * 1000,
     };
+    const action: LinkAction =
+      mode === "new"
+        ? { ...context, mode }
+        : mode === "replacement"
+          ? { ...context, mode, sourceId: sourceId!, operationId: operationId! }
+          : { ...context, mode, sourceId: sourceId! };
     saveLinkAction(sessionStorage, action);
     setLinkAction(action);
     await openLink(action);
@@ -335,6 +361,14 @@ export default function App() {
               disabled={busy}
               onClick={() => {
                 handler.current?.destroy();
+                if (linkAction.mode === "replacement")
+                  void run(async () => {
+                    await api(
+                      `/source-replacements/${encodeURIComponent(linkAction.operationId!)}/cancel`,
+                      {},
+                    );
+                    await api("/state");
+                  });
                 cancelLinkAction(sessionStorage);
                 setLinkAction(null);
                 setLinkNotice(
@@ -350,11 +384,18 @@ export default function App() {
       {page === "accounts" && (
         <Accounts
           key={route}
-          revision={JSON.stringify([state?.connections, state?.accounts])}
+          revision={JSON.stringify([
+            state?.connections,
+            state?.accounts,
+            accountRevision,
+          ])}
           api={api}
           route={route}
           onRefresh={() => api("/state")}
           addSource={() => run(() => startLink("new"))}
+          replaceSource={(sourceId: string, operationId: string) =>
+            run(() => startLink("replacement", sourceId, operationId))
+          }
           updateSource={(
             sourceId: string,
             action: "repair" | "select_accounts",

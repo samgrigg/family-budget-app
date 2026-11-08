@@ -98,10 +98,41 @@ export class AccountRepository {
       .all(this.env);
   }
   history(policy: "all" | "included"): any[] {
-    return reconcile(this.db, this.env, this.rawHistory(policy)).rows;
+    return reconcile(this.db, this.env, this.eligibleHistory(policy)).rows;
   }
   dataIssues() {
-    return reconcile(this.db, this.env, this.rawHistory("all")).issues;
+    const staged = this.stagedSources();
+    return [
+      ...reconcile(this.db, this.env, this.eligibleHistory("all")).issues,
+      ...this.rawHistory()
+        .filter((t) => staged.has(t.connection))
+        .map((t) => ({
+          kind: "replacement_pending",
+          accountId: t.canonicalAccountId,
+          reason:
+            "Replacement import awaits explicit account review. Resume in Data access.",
+          count: 1,
+          date: t.date,
+          currency: t.currency,
+          amount: t.amount,
+          transactionIds: [t.sourceTransactionId],
+        })),
+    ];
+  }
+  private stagedSources() {
+    return new Set(
+      (
+        this.db
+          .prepare(
+            "SELECT new_source_id FROM source_replacements WHERE env=? AND state!='complete' AND new_source_id IS NOT NULL",
+          )
+          .all(this.env) as { new_source_id: string }[]
+      ).map((o) => o.new_source_id),
+    );
+  }
+  private eligibleHistory(policy: "all" | "included") {
+    const staged = this.stagedSources();
+    return this.rawHistory(policy).filter((t) => !staged.has(t.connection));
   }
   rawHistory(policy: "all" | "included" = "all"): any[] {
     ensureAccountIdentities(this.db);

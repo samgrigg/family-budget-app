@@ -157,6 +157,17 @@ export class AccountLinking {
     }
     return [...merged.values()];
   }
+  blockingOperationId(...accountIds: string[]): string | null {
+    if (!accountIds.length) return null;
+    const parameters = accountIds.map(() => "?").join(",");
+    const active = this.db
+      .prepare(
+        `SELECT id FROM account_links WHERE env=? AND status='linked' AND (left_id IN (${parameters}) OR right_id IN (${parameters}))`,
+      )
+      .get(this.env, ...accountIds, ...accountIds) as
+      { id: string } | undefined;
+    return active?.id ?? null;
+  }
   review(leftId: string, rightId: string) {
     const left = this.account(leftId),
       right = this.account(rightId);
@@ -221,11 +232,8 @@ export class AccountLinking {
       reasons.push(
         "At least three distinct matching posted transaction signatures are required.",
       );
-    const active = this.db
-      .prepare(
-        "SELECT id FROM account_links WHERE env=? AND status='linked' AND (left_id IN (?,?) OR right_id IN (?,?))",
-      )
-      .get(this.env, leftId, rightId, leftId, rightId) as any;
+    const blockingId = this.blockingOperationId(leftId, rightId);
+    const active = blockingId ? { id: blockingId } : null;
     if (active)
       reasons.push(
         "These accounts already belong to a link operation. Review and unlink that operation first.",
@@ -375,6 +383,18 @@ export class AccountLinking {
         fail("Choose an account name and budgeting inclusion explicitly.");
       const sources = [...review.left.sources, ...review.right.sources];
       if (
+        sources.some((s) =>
+          this.db
+            .prepare(
+              "SELECT 1 FROM source_replacements WHERE env=? AND state!='complete' AND (new_source_id=? OR (old_source_id=? AND state!='cancelled'))",
+            )
+            .get(this.env, s.id, s.id),
+        )
+      )
+        fail(
+          "This source has a pending replacement. Confirm account matches in Data access so replacement review and preferences remain coordinated.",
+        );
+      if (
         !sources.some(
           (s) =>
             s.id === input.preferredSourceId &&
@@ -506,6 +526,16 @@ export class AccountLinking {
   }
   prefer(id: string, source: string) {
     const op = this.operation(id);
+    if (
+      this.db
+        .prepare(
+          "SELECT 1 FROM source_replacements WHERE env=? AND new_source_id=? AND state!='complete'",
+        )
+        .get(this.env, source)
+    )
+      fail(
+        "Complete replacement review in Data access before activating this source preference.",
+      );
     const valid = this.db
       .prepare(
         "SELECT 1 FROM source_accounts s JOIN data_sources d ON d.env=s.env AND d.id=s.source_id WHERE s.env=? AND s.account_id=? AND s.source_id=? AND d.status NOT IN ('historical','revoke_required')",

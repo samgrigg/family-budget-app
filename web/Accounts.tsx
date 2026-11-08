@@ -1,3 +1,4 @@
+import HistoryReplacement from "./HistoryReplacement";
 import AccountMatches from "./AccountMatches";
 import DataIssues from "./DataIssues";
 import {
@@ -14,6 +15,7 @@ export default function Accounts({
   onRefresh,
   addSource,
   updateSource,
+  replaceSource,
   configured,
   busy,
   externalError,
@@ -137,6 +139,15 @@ export default function Accounts({
               instructions.
             </p>
           )}
+          <HistoryReplacement
+            api={api}
+            sources={index.sources}
+            institutions={index.institutions}
+            revision={revision}
+            onRefresh={onRefresh}
+            openLink={replaceSource}
+            disabled={disabled || !configured}
+          />
           {index.sources.map((s: any) => (
             <article className="connection" key={s.id}>
               <h2>

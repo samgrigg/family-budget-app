@@ -380,7 +380,7 @@ it("backs up version four before adding account availability without rewriting e
       "original",
     );
     db.exec(
-      "DROP TABLE source_account_access; DELETE FROM schema_migrations WHERE version=5",
+      "DROP TABLE source_account_access; DELETE FROM schema_migrations WHERE version>=5",
     );
     const before = (await readdir(join(dir, "migration-backups"))).length;
     expect(() => new Store(db, Buffer.alloc(32), "sandbox")).toThrow(
@@ -399,6 +399,37 @@ it("backs up version four before adding account availability without rewriting e
         )
         .get(),
     ).toEqual({ transaction_id: "original" });
+    await migrateDatabase(db);
+    expect((await readdir(join(dir, "migration-backups"))).length).toBe(
+      before + 1,
+    );
+  } finally {
+    db.close();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+it("backs up version five before adding durable replacements without changing historical request metadata", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "budget-v5-")),
+    db = fixture(join(dir, "synthetic.sqlite"));
+  try {
+    await migrateDatabase(db);
+    const sources = db.prepare("SELECT * FROM data_sources").all(),
+      mappings = db.prepare("SELECT * FROM source_accounts").all();
+    db.exec(
+      "DROP TABLE source_replacements; DROP TABLE replacement_reviews; DELETE FROM schema_migrations WHERE version>=6",
+    );
+    const before = (await readdir(join(dir, "migration-backups"))).length;
+    expect(() => new Store(db, Buffer.alloc(32), "sandbox")).toThrow(
+      /Await migrateDatabase/,
+    );
+    await migrateDatabase(db);
+    expect((await readdir(join(dir, "migration-backups"))).length).toBe(
+      before + 1,
+    );
+    expect(db.prepare("SELECT * FROM source_replacements").all()).toEqual([]);
+    expect(db.prepare("SELECT * FROM data_sources").all()).toEqual(sources);
+    expect(db.prepare("SELECT * FROM source_accounts").all()).toEqual(mappings);
     await migrateDatabase(db);
     expect((await readdir(join(dir, "migration-backups"))).length).toBe(
       before + 1,
