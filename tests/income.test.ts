@@ -91,3 +91,19 @@ it("identifies payroll senders without treating arbitrary merchants or processor
     ] as any),
   ).toBe("EXAMPLE INC");
 });
+
+import { householdEmployer } from "../server/income";
+it("normalizes owner-confirmed Adobe and Canyons employer aliases without matching unrelated names", () => {
+  expect(householdEmployer("Adobe")).toBe("Adobe");
+  expect(
+    householdEmployer("ACH Deposit COMPANY: ADOBE INC ENTRY: PAYROLL Jane Doe"),
+  ).toBe("Adobe");
+  expect(
+    householdEmployer(
+      "ACH Deposit COMPANY: CANYONS SCHOOL D ENTRY: PAYROLL PAYROLL Jane Doe",
+    ),
+  ).toBe("Canyons");
+  expect(householdEmployer("Canyons School District")).toBe("Canyons");
+  expect(householdEmployer("Canyons Credit Union transfer")).toBeNull();
+  expect(householdEmployer("Adobe refund")).toBeNull();
+});

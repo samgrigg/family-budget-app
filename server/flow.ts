@@ -1,5 +1,5 @@
 import { billState } from "./bills";
-import { identifyEmployer, incomeState } from "./income";
+import { householdEmployer, identifyEmployer, incomeState } from "./income";
 import { transactionKey } from "./transfers";
 import { transferState } from "./transfers";
 import type { Store } from "./store";
@@ -212,7 +212,11 @@ export function flowState(store: Store, month: string, currency: string) {
       continue;
     if (Number(t.amount) < 0) {
       const known = knownIncome.get(transactionKey(t));
-      const employer = identifyEmployer(t.name) || known?.employer;
+      const employer =
+        (type(t) === "depository" ? householdEmployer(t.name) : null) ||
+        householdEmployer(known?.employer ?? "") ||
+        identifyEmployer(t.name) ||
+        known?.employer;
       const passive = /\b(interest|dividends?)\b/i.test(t.name);
       const name = passive
         ? "Other income"

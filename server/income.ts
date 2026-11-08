@@ -1,6 +1,23 @@
 import { candidates, groupKey, summarize, type Entry } from "./bills";
 import { confirmedTransactionKeys, transactionKey } from "./transfers";
 import type { Store } from "./store";
+// Owner-confirmed employer aliases; applied only to deposit inflows in flowState.
+export function householdEmployer(description: string): string | null {
+  const sender = (
+    description.match(/\bCOMPANY:\s*(.+?)\s+ENTRY:/i)?.[1] ?? description
+  ).trim();
+  if (
+    /^adobe(?:,?\s+inc\.?)?(?:\s+(?:payroll|salary|paycheck))?$/i.test(sender)
+  )
+    return "Adobe";
+  if (
+    /^canyons(?:\s+school(?:\s+(?:d|dist|district))?\.?)?(?:\s+(?:payroll|salary|paycheck))?$/i.test(
+      sender,
+    )
+  )
+    return "Canyons";
+  return null;
+}
 // Statement text identifies a payroll sender, not verified employment.
 export function identifyEmployer(description: string): string | null {
   if (!/\b(payroll\w*|salary|salaries|paycheck)\b/i.test(description))
