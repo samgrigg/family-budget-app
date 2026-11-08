@@ -1,4 +1,5 @@
-import { loadHiddenAccounts } from "./accountPreferences";
+import DataIssues from "./DataIssues";
+import { loadHiddenAccounts, saveHiddenAccounts } from "./accountPreferences";
 import { summarizeFlow } from "./flowSummary";
 import Sankey from "./Sankey";
 import { filteredSankey, flowNetwork } from "./flowNetwork";
@@ -24,7 +25,14 @@ export default function MoneyFlow({ api }: any) {
       .then((d: any) => {
         if (cancelled) return;
         try {
-          setHidden(loadHiddenAccounts(localStorage, d.environment, d.aliases));
+          setHidden(
+            loadHiddenAccounts(
+              localStorage,
+              d.environment,
+              d.aliases,
+              d.account_redirects,
+            ),
+          );
           setPreferenceEnvironment(d.environment);
         } catch {
           setError("Chart preferences could not be loaded.");
@@ -44,10 +52,7 @@ export default function MoneyFlow({ api }: any) {
     setFocusNode(null);
     try {
       if (preferenceEnvironment)
-        localStorage.setItem(
-          `flow-hidden-accounts:${preferenceEnvironment}`,
-          JSON.stringify(next),
-        );
+        saveHiddenAccounts(localStorage, preferenceEnvironment, next);
     } catch {}
   };
   useEffect(() => {
@@ -153,6 +158,7 @@ export default function MoneyFlow({ api }: any) {
         appears once. Arrows show direction; thicker edges represent larger
         amounts. Select an account to highlight its connections.
       </p>
+      <DataIssues issues={data?.dataIssues} />
       <div className="flow-filters">
         <label>
           Calendar month

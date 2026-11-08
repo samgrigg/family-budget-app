@@ -830,3 +830,36 @@ input[type="month"] {
 .panel article p {
   overflow-wrap: anywhere;
 }
+
+.match-comparison {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+}
+.match-comparison article {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+[aria-label="Account matches"] label {
+  display: grid;
+  gap: 0.4rem;
+  margin-block: 1rem;
+}
+[aria-label="Account matches"] select,
+[aria-label="Account matches"] input {
+  max-width: 100%;
+  min-width: 0;
+  width: 100%;
+  min-height: 44px;
+  font: inherit;
+}
+[aria-label="Account matches"] button {
+  min-height: 44px;
+  margin-block: 0.4rem;
+  white-space: normal;
+}
+@media (min-width: 42rem) {
+  .match-comparison {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

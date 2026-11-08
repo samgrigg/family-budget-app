@@ -126,6 +126,7 @@ export function incomeState(store: Store, now = new Date()) {
     suggestions,
     saved,
     dismissed,
+    dataIssues: store.repository.dataIssues(),
     unresolved: classification.unresolved,
   };
 }

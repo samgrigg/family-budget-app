@@ -1,3 +1,4 @@
+import { AccountLinking } from "./account-linking";
 import type express from "express";
 import type { Store } from "./store";
 // Mounted only after createApp's same-origin/session/CSRF middleware.
@@ -6,6 +7,54 @@ export function installAccountApi(
   store: Store,
   recoveryIds: () => string[] = () => [],
 ) {
+  const linking = new AccountLinking(store);
+  const handle =
+    (fn: (req: any) => any): express.RequestHandler =>
+    (req, res) => {
+      try {
+        res.json(fn(req));
+      } catch (error: any) {
+        if (error.code === "LINK_REVIEW_REQUIRED")
+          res.status(409).json({ error: error.message, code: error.code });
+        else throw error;
+      }
+    };
+  app.get(
+    "/api/account-matches",
+    handle(() => ({ suggestions: linking.suggestions() })),
+  );
+  app.get(
+    "/api/account-matches/review",
+    handle((req) =>
+      linking.review(
+        String(req.query.left ?? ""),
+        String(req.query.right ?? ""),
+      ),
+    ),
+  );
+  app.get(
+    "/api/account-links",
+    handle(() => ({ operations: linking.operations() })),
+  );
+  app.post(
+    "/api/account-links",
+    handle((req) => linking.link(req.body ?? {})),
+  );
+  app.get(
+    "/api/account-links/:id/unlink-review",
+    handle((req) => linking.unlinkReview(req.params.id)),
+  );
+  app.post(
+    "/api/account-links/:id/unlink",
+    handle((req) => linking.unlink(req.params.id, req.body ?? {})),
+  );
+  app.post(
+    "/api/account-links/:id/preferred-source",
+    handle((req) => {
+      linking.prefer(req.params.id, req.body?.sourceId);
+      return { ok: true };
+    }),
+  );
   app.get("/api/accounts", (_req, res) => {
     const raw = store.repository.accounts();
     const recovery = recoveryIds();
@@ -33,6 +82,8 @@ export function installAccountApi(
     }
     res.json({
       environment: store.env,
+      account_redirects: linking.redirects(),
+      dataIssues: store.repository.dataIssues(),
       aliases: store.repository.aliases(),
       accounts: [
         ...new Map(
@@ -70,6 +121,12 @@ export function installAccountApi(
       return res.status(400).json({
         error: "Enter a name (1–120 characters) and budgeting inclusion.",
       });
+    if (!store.repository.listAccounts().some((a) => a.id === req.params.id))
+      return res
+        .status(404)
+        .json({
+          error: "Account not found. Reload accounts; it may have been linked.",
+        });
     const result = store.db
       .prepare("UPDATE app_accounts SET name=?,included=? WHERE env=? AND id=?")
       .run(name.trim(), Number(included), store.env, req.params.id);
@@ -128,6 +185,9 @@ export function installAccountApi(
       .all(store.env, account.id);
     res.json({
       account,
+      dataIssues: store.repository
+        .dataIssues()
+        .filter((i) => i.accountId === account.id),
       sources: (sources as any[]).map((source) => ({
         ...source,
         missingAccessAction:

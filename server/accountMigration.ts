@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { chmod, mkdir, open, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
-export const accountSchemaVersion = 2;
+export const accountSchemaVersion = 3;
 const version = accountSchemaVersion;
 const schema = `
 CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL);
@@ -169,6 +169,13 @@ export function applyAccountMigration(db: Database.Database): void {
       CREATE TABLE IF NOT EXISTS source_account_metadata(env TEXT,source_id TEXT,account_id TEXT,subtype TEXT,ownership TEXT,PRIMARY KEY(env,source_id,account_id));
       CREATE TABLE IF NOT EXISTS decision_history(id INTEGER PRIMARY KEY,env TEXT,kind TEXT,legacy_key TEXT,payload TEXT NOT NULL,archived_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS decision_id_aliases(env TEXT,kind TEXT,legacy_key TEXT,canonical_key TEXT,PRIMARY KEY(env,kind,legacy_key,canonical_key));`);
+    db.exec(`CREATE TABLE IF NOT EXISTS account_links(env TEXT NOT NULL,id TEXT NOT NULL,left_id TEXT NOT NULL,right_id TEXT NOT NULL,preferred_source TEXT NOT NULL,status TEXT NOT NULL,snapshot TEXT NOT NULL,created_at TEXT NOT NULL,PRIMARY KEY(env,id));
+      CREATE TABLE IF NOT EXISTS transaction_events(env TEXT NOT NULL,account_id TEXT NOT NULL,signature TEXT NOT NULL,ordinal INTEGER NOT NULL,event_id TEXT NOT NULL,PRIMARY KEY(env,account_id,signature,ordinal));
+      CREATE TABLE IF NOT EXISTS transaction_event_aliases(env TEXT NOT NULL,source_id TEXT NOT NULL,transaction_id TEXT NOT NULL,signature TEXT NOT NULL,event_id TEXT NOT NULL,PRIMARY KEY(env,source_id,transaction_id));`);
+    if (!db.prepare("SELECT 1 FROM schema_migrations WHERE version=2").get())
+      db.prepare("INSERT INTO schema_migrations VALUES(2,?)").run(
+        new Date().toISOString(),
+      );
     ensureAccountIdentities(db);
     db.prepare("INSERT INTO schema_migrations VALUES(?,?)").run(
       version,

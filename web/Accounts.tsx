@@ -1,3 +1,5 @@
+import AccountMatches from "./AccountMatches";
+import DataIssues from "./DataIssues";
 import {
   createRequestGate,
   loadAccountView,
@@ -107,6 +109,10 @@ export default function Accounts({
         </div>
       )}
       {!index && !error && <p role="status">Loading accounts…</p>}
+      <DataIssues issues={detail?.dataIssues ?? index?.dataIssues} />
+      {index && !access && !id && (
+        <AccountMatches api={api} onRefresh={onRefresh} revision={revision} />
+      )}
       {working && <p role="status">Saving…</p>}
       {index && access && (
         <>
@@ -336,7 +342,11 @@ export default function Accounts({
           <p>
             <a href="#data-access">Manage sources, sync or disconnect</a>
           </p>
-          <h2>Transactions</h2>
+          <h2>Source transactions</h2>
+          <p>
+            Every source record is shown here, including matched copies and
+            unresolved overlaps. Estimates count only reconciled events.
+          </p>
           <ul className="account-list">
             {detail.transactions.map((t: any) => (
               <li key={t.id}>
@@ -345,6 +355,13 @@ export default function Accounts({
                   <p>
                     {t.date}
                     {t.pending ? " · Pending" : ""}
+                    {" · "}
+                    {detail.sources.find((s: any) => s.id === t.sourceId)
+                      ?.label ||
+                      `Data source ${detail.sources.findIndex((s: any) => s.id === t.sourceId) + 1}`}
+                    {detail.dataIssues?.some((issue: any) =>
+                      issue.transactionIds.includes(t.sourceTransactionId),
+                    ) && " · Unresolved overlap; withheld from estimates"}
                   </p>
                 </div>
                 <span>{accountAmount(t.currency, t.amount)}</span>

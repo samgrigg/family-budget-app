@@ -214,6 +214,7 @@ export function billState(store: Store, months: number, now = new Date()) {
       })),
     history: { first: rows[0]?.date ?? null, last: rows.at(-1)?.date ?? null },
     months,
+    dataIssues: store.repository.dataIssues(),
     unresolved: classification.unresolved,
     unresolvedExclusions: classification.resolved.flatMap((d) =>
       JSON.parse(d.excluded)

@@ -93,6 +93,7 @@ export function createApp(
           last_sync: null,
         })),
       ],
+      dataIssues: store.repository.dataIssues(),
       accounts: store.accountList(),
       transfers,
       transactions: store.transactions().map((t) => ({

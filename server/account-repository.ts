@@ -1,3 +1,4 @@
+import { reconcile } from "./account-overlap";
 import type Database from "better-sqlite3";
 import { ensureAccountIdentities } from "./accountMigration";
 export interface AccountIdentity {
@@ -11,6 +12,8 @@ export interface AccountIdentity {
 }
 export interface TransactionIdentity {
   id: string;
+  sourceTransactionId?: string;
+  provenance?: any[];
   accountId: string;
   sourceId: string;
   providerTransactionId: string;
@@ -44,7 +47,11 @@ export class AccountRepository {
       .all(this.env);
   }
   listAccounts(): AccountIdentity[] {
-    return this.accounts().map((a) => ({
+    return [
+      ...new Map(
+        this.accounts().map((a) => [a.canonicalAccountId, a]),
+      ).values(),
+    ].map((a) => ({
       id: a.canonicalAccountId,
       institutionId: a.institutionId,
       name: a.name,
@@ -57,6 +64,8 @@ export class AccountRepository {
   transactionIdentity(t: any): TransactionIdentity {
     return {
       id: t.canonicalTransactionId,
+      sourceTransactionId: t.sourceTransactionId,
+      provenance: t.provenance,
       accountId: t.canonicalAccountId,
       sourceId: t.connection,
       providerTransactionId: t.id,
@@ -85,6 +94,12 @@ export class AccountRepository {
       .all(this.env);
   }
   history(policy: "all" | "included"): any[] {
+    return reconcile(this.db, this.env, this.rawHistory(policy)).rows;
+  }
+  dataIssues() {
+    return reconcile(this.db, this.env, this.rawHistory("all")).issues;
+  }
+  rawHistory(policy: "all" | "included" = "all"): any[] {
     ensureAccountIdentities(this.db);
     return (
       this.db
@@ -95,6 +110,7 @@ export class AccountRepository {
     ).map((t) => ({
       ...t,
       canonicalTransactionId: sourceTransactionId(this.env, t.connection, t.id),
+      sourceTransactionId: sourceTransactionId(this.env, t.connection, t.id),
     }));
   }
   transactions(
@@ -102,7 +118,7 @@ export class AccountRepository {
     options: { limit?: number; cursor?: string } = {},
   ): { rows: any[]; nextCursor: string | null } {
     const limit = Math.min(200, Math.max(1, options.limit ?? 50));
-    const rows = this.history("all")
+    const rows = this.rawHistory("all")
       .filter((t) => t.canonicalAccountId === accountId)
       .sort(
         (a, b) =>
@@ -129,7 +145,7 @@ export class AccountRepository {
     };
   }
   coverage(accountId: string): Array<HistoryCoverage & { sourceId: string }> {
-    const rows = this.history("all").filter(
+    const rows = this.rawHistory("all").filter(
       (t) => t.canonicalAccountId === accountId && !t.pending,
     );
     return (
@@ -272,7 +288,8 @@ export class AccountRepository {
                 groups?.some(
                   (t) =>
                     t.canonicalTransactionId === id &&
-                    (t.legacyGroupKey === d.key ||
+                    (aliases.get(t.legacyGroupKey) === key ||
+                      t.legacyGroupKey === d.key ||
                       aliases.get(t.legacyGroupKey) === d.key),
                 )
               )

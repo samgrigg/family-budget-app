@@ -1,3 +1,4 @@
+import DataIssues from "./DataIssues";
 import { useEffect, useState } from "react";
 export default function Bills({
   api,
@@ -66,6 +67,7 @@ export default function Bills({
     );
   return (
     <section className="panel" aria-label="Bills" tabIndex={-1}>
+      <DataIssues issues={data?.dataIssues} />
       <p role="status" className="action-status">
         {notice}
       </p>

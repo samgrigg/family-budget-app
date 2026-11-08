@@ -297,6 +297,11 @@ export class Store {
           ),
           { code: "SOURCE_AUTHORIZED" },
         );
+      this.db
+        .prepare(
+          "UPDATE account_links SET status='deleted' WHERE env=? AND status='linked' AND (left_id=? OR right_id=?)",
+        )
+        .run(this.env, id, id);
       for (const m of mappings) {
         this.db
           .prepare(

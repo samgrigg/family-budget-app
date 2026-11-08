@@ -251,6 +251,9 @@ export function flowState(store: Store, month: string, currency: string) {
     .sort((a, b) => b.month.localeCompare(a.month));
   return {
     ...graph,
+    dataIssues: store.repository
+      .dataIssues()
+      .filter((i) => i.date.startsWith(month) && i.currency === currency),
     month,
     currency,
     savingsBasis:

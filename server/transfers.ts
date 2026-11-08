@@ -1,3 +1,4 @@
+import { description } from "./account-overlap";
 import { createHash } from "node:crypto";
 import type { Store } from "./store";
 export const transactionKey = (t: any) =>
@@ -35,21 +36,32 @@ export function transferCandidates(rows: any[]) {
         .update(
           JSON.stringify(
             [out, into].map((t) =>
-              t.canonicalAccountId
+              t.provenance
                 ? {
-                    id: t.id,
-                    connection: t.connection,
-                    account: t.account,
                     date: t.date,
-                    name: t.name,
-                    amount: t.amount,
+                    name: description(t.name),
+                    amount: String(Number(t.amount)),
                     currency: t.currency,
                     pending: t.pending,
                     account_type: t.account_type,
                     canonicalAccountId: t.canonicalAccountId,
                     canonicalTransactionId: t.canonicalTransactionId,
                   }
-                : t,
+                : t.canonicalAccountId
+                  ? {
+                      id: t.id,
+                      connection: t.connection,
+                      account: t.account,
+                      date: t.date,
+                      name: t.name,
+                      amount: t.amount,
+                      currency: t.currency,
+                      pending: t.pending,
+                      account_type: t.account_type,
+                      canonicalAccountId: t.canonicalAccountId,
+                      canonicalTransactionId: t.canonicalTransactionId,
+                    }
+                  : t,
             ),
           ),
         )
@@ -138,6 +150,7 @@ export function transferState(store: Store) {
   }
   return {
     confirmed,
+    dataIssues: store.repository.dataIssues(),
     unresolved: classification.unresolved,
     review: review.filter(
       (p) => ![p.out, p.into].some((t) => used.has(transactionKey(t))),

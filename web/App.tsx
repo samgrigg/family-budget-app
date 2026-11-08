@@ -1,3 +1,4 @@
+import DataIssues from "./DataIssues";
 import Accounts from "./Accounts";
 import MoneyFlow from "./MoneyFlow";
 import BillsOverview from "./BillsOverview";
@@ -208,6 +209,7 @@ export default function App() {
           Money Flow
         </a>
       </nav>
+      {page === "budget" && <DataIssues issues={state?.dataIssues} />}
       {page === "money-flow" && <MoneyFlow api={api} />}
       {page === "income-overview" && (
         <BillsOverview

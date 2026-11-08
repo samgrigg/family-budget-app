@@ -32,6 +32,7 @@ export function loadHiddenAccounts(
   storage: Pick<Storage, "getItem" | "setItem">,
   environment: string,
   aliases: AccountAlias[],
+  redirects: { env: string; from: string; to: string }[] = [],
 ) {
   const key = `flow-hidden-accounts:${environment}`;
   const read = (k: string): string[] => {
@@ -54,5 +55,49 @@ export function loadHiddenAccounts(
     // Keep the legacy source intact: unmatched IDs may belong to another environment.
     storage.setItem(`${key}:migrated`, "1");
   }
+  let applied: any[] = [];
+  try {
+    const parsed = JSON.parse(storage.getItem(`${key}:links`) || "[]");
+    if (Array.isArray(parsed)) applied = parsed;
+  } catch {}
+  const active = redirects.filter((r) => r.env === environment);
+  for (const old of applied)
+    if (
+      !active.some((r) => r.from === old.from && r.to === old.to) &&
+      old.added &&
+      !old.edited
+    )
+      hidden = hidden.filter((h) => h !== `account:${old.to}`);
+  applied = applied.filter((old) =>
+    active.some((r) => r.from === old.from && r.to === old.to),
+  );
+  for (const r of active)
+    if (!applied.some((a) => a.from === r.from && a.to === r.to)) {
+      const added =
+        hidden.includes(`account:${r.from}`) &&
+        !hidden.includes(`account:${r.to}`);
+      if (added) hidden.push(`account:${r.to}`);
+      applied.push({ ...r, added, edited: false });
+    }
+  storage.setItem(`${key}:links`, JSON.stringify(applied));
+  storage.setItem(key, JSON.stringify(hidden));
   return hidden;
+}
+
+export function saveHiddenAccounts(
+  storage: Pick<Storage, "getItem" | "setItem">,
+  environment: string,
+  hidden: string[],
+) {
+  const key = `flow-hidden-accounts:${environment}`;
+  const old = JSON.parse(storage.getItem(key) || "[]");
+  const links = JSON.parse(storage.getItem(`${key}:links`) || "[]");
+  for (const link of links)
+    if (
+      old.includes(`account:${link.to}`) !==
+      hidden.includes(`account:${link.to}`)
+    )
+      link.edited = true;
+  storage.setItem(`${key}:links`, JSON.stringify(links));
+  storage.setItem(key, JSON.stringify(hidden));
 }

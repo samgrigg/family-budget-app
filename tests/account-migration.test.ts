@@ -138,7 +138,7 @@ describe("account identity migration", () => {
         db.prepare("SELECT * FROM app_accounts ORDER BY env,included").all(),
       ).toEqual(accounts);
       expect(db.prepare("SELECT * FROM schema_migrations").all()).toHaveLength(
-        2,
+        3,
       );
     } finally {
       db.close();
@@ -194,7 +194,7 @@ describe("account identity migration", () => {
       expect(snapshot(db)).toEqual(before);
       await migrateDatabase(db);
       expect(db.prepare("SELECT * FROM schema_migrations").all()).toHaveLength(
-        2,
+        3,
       );
     } finally {
       db.close();
@@ -256,7 +256,7 @@ it("backs up a version-one database before read-boundary schema upgrade and guar
     );
     await migrateDatabase(db);
     db.exec(
-      "DROP TABLE transaction_metadata; DROP TABLE source_account_metadata; DROP TABLE decision_id_aliases; DELETE FROM schema_migrations WHERE version=2",
+      "DROP TABLE transaction_metadata; DROP TABLE source_account_metadata; DROP TABLE decision_id_aliases; DROP TABLE account_links; DROP TABLE transaction_events; DROP TABLE transaction_event_aliases; DELETE FROM schema_migrations WHERE version>=2",
     );
     const existing = (await readdir(join(dir, "migration-backups"))).length;
     expect(() => new Store(db, Buffer.alloc(32), "sandbox")).toThrow(
@@ -268,6 +268,31 @@ it("backs up a version-one database before read-boundary schema upgrade and guar
     );
     const s = new Store(db, Buffer.alloc(32), "sandbox");
     expect(s.repository.listAccounts()).toHaveLength(2);
+  } finally {
+    db.close();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+it("backs up a version-two database before reversible-link schema changes", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "budget-link-upgrade-"));
+  const db = fixture(join(dir, "old.sqlite"));
+  try {
+    await migrateDatabase(db);
+    const before = snapshot(db);
+    db.exec(
+      "DROP TABLE account_links; DROP TABLE transaction_events; DROP TABLE transaction_event_aliases; DELETE FROM schema_migrations WHERE version=3",
+    );
+    const count = (await readdir(join(dir, "migration-backups"))).length;
+    expect(() => new Store(db, Buffer.alloc(32), "sandbox")).toThrow(
+      /Await migrateDatabase/,
+    );
+    await migrateDatabase(db);
+    expect((await readdir(join(dir, "migration-backups"))).length).toBe(
+      count + 1,
+    );
+    expect(snapshot(db)).toEqual(before);
+    expect(db.prepare("SELECT * FROM account_links").all()).toEqual([]);
   } finally {
     db.close();
     await rm(dir, { recursive: true, force: true });

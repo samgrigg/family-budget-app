@@ -1,3 +1,4 @@
+import DataIssues from "./DataIssues";
 import IncomeReview from "./IncomeReview";
 import { useEffect, useState } from "react";
 import { buildOverview } from "./monthProjection";
@@ -100,6 +101,7 @@ export default function BillsOverview({
           </button>
         </p>
       )}
+      <DataIssues issues={data?.dataIssues} />
       {!overview ? (
         !error && (
           <p role="status">{income ? "Loading income…" : "Loading bills…"}</p>
