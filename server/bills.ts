@@ -161,6 +161,7 @@ export function billState(store: Store, months: number, now = new Date()) {
     return {
       connection: t?.connection,
       accountId: t?.account,
+      canonicalAccountId: t?.canonicalAccountId,
       accountName: a ? `${a.name}${a.mask ? ` ••${a.mask}` : ""}` : "Account",
     };
   };

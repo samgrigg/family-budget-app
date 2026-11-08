@@ -1,3 +1,4 @@
+import { loadHiddenAccounts } from "./accountPreferences";
 import { summarizeFlow } from "./flowSummary";
 import Sankey from "./Sankey";
 import { filteredSankey, flowNetwork } from "./flowNetwork";
@@ -13,25 +14,40 @@ export default function MoneyFlow({ api }: any) {
   const [fullscreen, setFullscreen] = useState(false),
     [expanded, setExpanded] = useState(false);
   const settings = useRef<HTMLDialogElement>(null);
-  const [hidden, setHidden] = useState<string[]>(() => {
-    try {
-      const value = JSON.parse(
-        localStorage.getItem("flow-hidden-accounts") ?? "[]",
-      );
-      return Array.isArray(value)
-        ? value.filter((v) => typeof v === "string")
-        : [];
-    } catch {
-      return [];
-    }
-  });
+  const [hidden, setHidden] = useState<string[]>([]);
+  const [preferenceEnvironment, setPreferenceEnvironment] = useState<
+    string | null
+  >(null);
+  useEffect(() => {
+    let cancelled = false;
+    api("/accounts")
+      .then((d: any) => {
+        if (cancelled) return;
+        try {
+          setHidden(loadHiddenAccounts(localStorage, d.environment, d.aliases));
+          setPreferenceEnvironment(d.environment);
+        } catch {
+          setError("Chart preferences could not be loaded.");
+        }
+      })
+      .catch((e: any) => {
+        if (!cancelled) setError(e.message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [focusNode, setFocusNode] = useState<string | null>(null);
   const changeHidden = (next: string[]) => {
     setHidden(next);
     setSelected(null);
     setFocusNode(null);
     try {
-      localStorage.setItem("flow-hidden-accounts", JSON.stringify(next));
+      if (preferenceEnvironment)
+        localStorage.setItem(
+          `flow-hidden-accounts:${preferenceEnvironment}`,
+          JSON.stringify(next),
+        );
     } catch {}
   };
   useEffect(() => {
@@ -287,6 +303,7 @@ export default function MoneyFlow({ api }: any) {
                 <label className="flow-setting-account" key={a.id}>
                   <input
                     type="checkbox"
+                    disabled={!preferenceEnvironment}
                     checked={!hidden.includes(a.id)}
                     onChange={(e) =>
                       changeHidden(

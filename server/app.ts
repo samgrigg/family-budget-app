@@ -390,7 +390,7 @@ export function createApp(
       }
     },
   );
-  installAccountApi(app, store);
+  installAccountApi(app, store, () => [...recovery.keys()]);
   // Compatibility alias: disconnect now preserves all local history.
   app.post(
     ["/api/connections/:id/disconnect", "/api/data-sources/:id/disconnect"],

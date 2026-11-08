@@ -121,6 +121,15 @@ it("retains an in-memory revocation handle if both saving and cleanup fail", asy
       .set("X-CSRF-Token", session.body.csrf);
   const failed = await post("/api/connect").send({ public_token: "x" });
   expect(failed.body.connections[0].status).toBe("revoke_required");
+  const management = await request(app)
+    .get("/api/accounts")
+    .set("Host", "localhost:3000");
+  expect(management.body.sources[0]).toMatchObject({
+    status: "revoke_required",
+    missingAccessCredential: 0,
+    recoveryOnly: true,
+  });
+  expect(JSON.stringify(management.body)).not.toContain("private-token");
   expect(JSON.stringify(failed.body)).not.toContain("private-token");
   const retried = await post("/api/connections/i1/disconnect").send({});
   expect(retried.status).toBe(200);

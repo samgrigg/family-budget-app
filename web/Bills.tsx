@@ -60,9 +60,7 @@ export default function Bills({
       ["suggestions", "saved", "dismissed"].map((v) => [
         v,
         data[v].filter(
-          (b: any) =>
-            !accountFilter ||
-            JSON.stringify([b.connection, b.accountId]) === accountFilter,
+          (b: any) => !accountFilter || b.canonicalAccountId === accountFilter,
         ),
       ]),
     );

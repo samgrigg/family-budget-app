@@ -818,3 +818,15 @@ input[type="month"] {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
+
+.account-inclusion {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 44px;
+  cursor: pointer;
+}
+.connection p,
+.panel article p {
+  overflow-wrap: anywhere;
+}

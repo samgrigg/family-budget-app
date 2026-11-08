@@ -1,7 +1,99 @@
 import type express from "express";
 import type { Store } from "./store";
 // Mounted only after createApp's same-origin/session/CSRF middleware.
-export function installAccountApi(app: express.Express, store: Store) {
+export function installAccountApi(
+  app: express.Express,
+  store: Store,
+  recoveryIds: () => string[] = () => [],
+) {
+  app.get("/api/accounts", (_req, res) => {
+    const raw = store.repository.accounts();
+    const recovery = recoveryIds();
+    const sources = store.db
+      .prepare(
+        "SELECT d.id,d.provider,d.institution_id,d.label,d.status,d.requested_days,d.last_checked,CASE WHEN c.token IS NULL THEN 1 ELSE 0 END AS missingAccessCredential FROM data_sources d LEFT JOIN connections c ON c.env=d.env AND c.id=d.id WHERE d.env=?",
+      )
+      .all(store.env) as any[];
+    for (const id of recovery) {
+      const source = sources.find((s) => s.id === id);
+      if (source) {
+        source.missingAccessCredential = 0;
+        source.status = "revoke_required";
+      } else
+        sources.push({
+          id,
+          provider: "plaid",
+          label: "Access revocation required",
+          status: "revoke_required",
+          requested_days: null,
+          last_checked: null,
+          missingAccessCredential: 0,
+          recoveryOnly: true,
+        });
+    }
+    res.json({
+      environment: store.env,
+      aliases: store.repository.aliases(),
+      accounts: [
+        ...new Map(
+          store.repository.listAccounts().map((a) => [
+            a.id,
+            {
+              ...a,
+              stale: raw
+                .filter((r) => r.canonicalAccountId === a.id)
+                .every(
+                  (r) =>
+                    sources.find((s) => s.id === r.connection)?.status ===
+                    "historical",
+                ),
+              mask:
+                raw.find((r) => r.canonicalAccountId === a.id)?.mask ?? null,
+            },
+          ]),
+        ).values(),
+      ],
+      institutions: store.db
+        .prepare("SELECT id,name,provisional FROM app_institutions WHERE env=?")
+        .all(store.env),
+      sources,
+    });
+  });
+  app.post("/api/accounts/:id/preferences", (req, res) => {
+    const { name, included } = req.body ?? {};
+    if (
+      typeof name !== "string" ||
+      !name.trim() ||
+      name.trim().length > 120 ||
+      typeof included !== "boolean"
+    )
+      return res.status(400).json({
+        error: "Enter a name (1–120 characters) and budgeting inclusion.",
+      });
+    const result = store.db
+      .prepare("UPDATE app_accounts SET name=?,included=? WHERE env=? AND id=?")
+      .run(name.trim(), Number(included), store.env, req.params.id);
+    if (!result.changes)
+      return res.status(404).json({ error: "Account not found." });
+    res.json({ ok: true });
+  });
+  for (const [route, table, column] of [
+    ["institutions", "app_institutions", "name"],
+    ["data-sources", "data_sources", "label"],
+  ]) {
+    app.post(`/api/${route}/:id/name`, (req, res) => {
+      const name = req.body?.name;
+      if (typeof name !== "string" || !name.trim() || name.trim().length > 120)
+        return res
+          .status(400)
+          .json({ error: "Enter a name between 1 and 120 characters." });
+      const result = store.db
+        .prepare(`UPDATE ${table} SET ${column}=? WHERE env=? AND id=?`)
+        .run(name.trim(), store.env, req.params.id);
+      if (!result.changes) return res.status(404).json({ error: "Not found." });
+      res.json({ ok: true });
+    });
+  }
   app.get("/api/accounts/:id", (req, res) => {
     const account = store.repository
       .listAccounts()
