@@ -173,7 +173,6 @@ export default function App() {
         <a className="brand" href="/">
           <span>Family Budget</span>
         </a>
-        <span className="tag">POC</span>
       </header>
       <nav className="page-nav" aria-label="Main navigation">
         <a href="#budget" aria-current={page === "budget" ? "page" : undefined}>
@@ -613,7 +612,7 @@ export default function App() {
       )}
       <footer>
         Stored locally.
-        <span>v0.1</span>
+        <span>v0.2</span>
       </footer>
     </main>
   );
