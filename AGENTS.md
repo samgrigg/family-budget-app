@@ -16,7 +16,9 @@ Reference sections: accessibility, typography, layout, buttons, color, and writi
 
 # Git workflow
 
-- Commit each completed, verified logical change with a clear message describing the result.
+- Commit each completed, verified logical change.
+- Commit messages must start with a one-line description of the result, no more than 72 characters. On the immediately following line, include the owner's request that prompted the work, preserving its wording. Do not insert a blank line between the description and request.
+- If the relevant request or how to assemble the message is unclear, ask the owner for clarification.
 - Keep unrelated changes separate. Do not commit incomplete work solely to create a checkpoint unless requested.
 - Before committing, inspect the staged file list and diff; exclude credentials, local financial data, databases, certificates, and generated dependencies/build output.
 - Report the commit hash when finishing implementation work. Push only when requested.
