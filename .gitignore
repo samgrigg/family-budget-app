@@ -7,3 +7,5 @@ data/
 certs/
 *.sqlite*
 .DS_Store
+
+migration-backups/
