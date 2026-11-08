@@ -1,3 +1,4 @@
+import BillClassificationFields from "./BillClassificationFields";
 import PaymentFields from "./PaymentFields";
 import { validMonth } from "../shared/billAmounts";
 import { useEffect, useRef, useState } from "react";
@@ -105,7 +106,7 @@ export default function BillPlan({
         amountMode: values.get("amountMode"),
         planningEstimate: values.get("planningEstimate"),
         expenseType: values.get("expenseType"),
-        creditAccountId: values.get("creditAccountId"),
+        creditAccountId: values.get("creditAccountId") ?? "",
         payments,
         currency: values.get("currency"),
         frequency: values.get("frequency"),
@@ -391,40 +392,11 @@ export default function BillPlan({
                         pattern="[0-9]+\.[0-9]{2}"
                       />
                     </label>
-                    <label>
-                      Counts as
-                      <select
-                        name="expenseType"
-                        defaultValue={r.expenseType ?? "expense"}
-                      >
-                        <option value="expense">Expense</option>
-                        <option value="creditPayment">
-                          Credit card payment (funding only)
-                        </option>
-                      </select>
-                    </label>
-                    <label>
-                      Credit card being paid (optional)
-                      <select
-                        name="creditAccountId"
-                        defaultValue={r.creditAccountId ?? ""}
-                      >
-                        <option value="">Card account not linked</option>
-                        {r.creditAccountId &&
-                          !data.creditAccounts.some(
-                            (a: any) => a.id === r.creditAccountId,
-                          ) && (
-                            <option value={r.creditAccountId}>
-                              Previously selected card · unavailable
-                            </option>
-                          )}
-                        {data.creditAccounts.map((a: any) => (
-                          <option key={a.id} value={a.id}>
-                            {a.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                    <BillClassificationFields
+                      expenseType={r.expenseType}
+                      creditAccountId={r.creditAccountId}
+                      accounts={data.creditAccounts}
+                    />
                     <PaymentFields row={r} month={month} data={data} />
                     <label>
                       Payment day (optional)

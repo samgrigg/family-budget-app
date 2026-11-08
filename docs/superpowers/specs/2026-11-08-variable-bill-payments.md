@@ -19,3 +19,9 @@ The observed Bills Overview identifies a repayment series only from an explicitl
 Current HIG entering-data and writing pages were consulted; text fetch returned JavaScript shells. Browser-native inputs/selects/details and existing 44px targets are retained. Synthetic desktop browser validation verified form save, unknown amounts, actual transaction autofill, next-bill focus, exclusion removal and fallback heading focus, keyboard month changes, and estimate versus actual totals. A browser automation fill of the month field alone did not emit the committed native change; keyboard month selection did update totals. Mobile, enlarged text, zoom and VoiceOver were not verified. This is not a conformance claim.
 
 Final verification: 150 automated tests, TypeScript and production build pass. No Plaid request/authentication behavior changed. Synthetic preview used an in-memory database; the owner's financial data remains untouched.
+
+## Conditional card destination
+
+The card destination selector appears only while Counts as is Credit card payment. Changing the classification updates visibility immediately and removes the hidden control from keyboard/accessibility navigation. Switching back within the form retains an unsaved card selection; saving an expense clears the inapplicable destination. Native label/select semantics and existing control dimensions are retained. Relevant HIG entering-data guidance was consulted during this feature; enlarged-text and VoiceOver verification remain outstanding.
+
+Conditional-field validation: synthetic browser check confirmed the destination is absent for Expense, appears immediately for Credit card payment and is removed again when switching back, including from keyboard navigation. Typecheck and production build pass.
