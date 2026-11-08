@@ -1,10 +1,38 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 export default function MoneyFlow({ api }: any) {
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7)),
     [currency, setCurrency] = useState("USD"),
     [data, setData] = useState<any>(null),
     [error, setError] = useState(""),
     [selected, setSelected] = useState<any>(null);
+  const chart = useRef<HTMLDivElement>(null);
+  const [fullscreen, setFullscreen] = useState(false),
+    [expanded, setExpanded] = useState(false);
+  useEffect(() => {
+    const changed = () =>
+      setFullscreen(document.fullscreenElement === chart.current);
+    document.addEventListener("fullscreenchange", changed);
+    return () => document.removeEventListener("fullscreenchange", changed);
+  }, []);
+  async function toggleFullscreen() {
+    if (document.fullscreenElement === chart.current) {
+      await document.exitFullscreen();
+      return;
+    }
+    if (expanded) {
+      setExpanded(false);
+      return;
+    }
+    try {
+      if (!chart.current?.requestFullscreen) {
+        setExpanded(true);
+        return;
+      }
+      await chart.current.requestFullscreen();
+    } catch {
+      setExpanded(true);
+    }
+  }
   useEffect(() => {
     let cancelled = false;
     setData(null);
@@ -119,11 +147,13 @@ export default function MoneyFlow({ api }: any) {
         </label>
       </div>
       <p>
-        Accounts appear in two stages to show routing, including transfers in either direction. This is aggregate monthly flow, not a trace of individual dollars. Uses confirmed income, bills, and internal transfers. Untraced funding
-        and unallocated money balance the diagram; they are not measured
-        balances or verified transactions. Transfers use their outgoing posting
-        month, even if the deposit posts later. Hidden accounts can appear along
-        transfer paths.
+        Accounts appear in two stages to show routing, including transfers in
+        either direction. This is aggregate monthly flow, not a trace of
+        individual dollars. Uses confirmed income, bills, and internal
+        transfers. Untraced funding and unallocated money balance the diagram;
+        they are not measured balances or verified transactions. Transfers use
+        their outgoing posting month, even if the deposit posts later. Hidden
+        accounts can appear along transfer paths.
       </p>
       {error && (
         <p role="alert" className="error">
@@ -140,68 +170,94 @@ export default function MoneyFlow({ api }: any) {
       {data && nodes.length > 0 && (
         <>
           <div
-            className="flow-scroll"
-            tabIndex={0}
-            role="region"
-            aria-label="Sankey money flow, horizontally scrollable. Full values available in the flow list below."
+            ref={chart}
+            className={`flow-chart${expanded ? " flow-expanded" : ""}`}
           >
-            <svg
-              viewBox={`0 0 1160 ${height}`}
-              style={{ minWidth: 1000 }}
-              role="img"
-              aria-label={`Money flow for ${month}. See flow list below for all connections and values.`}
+            <div className="flow-toolbar">
+              <strong>Money Flow · {month}</strong>
+              <button
+                type="button"
+                className="secondary"
+                aria-pressed={fullscreen || expanded}
+                onClick={() => void toggleFullscreen()}
+              >
+                {fullscreen
+                  ? "Exit full screen"
+                  : expanded
+                    ? "Exit expanded view"
+                    : "Full screen"}
+              </button>
+            </div>
+            {expanded && (
+              <p role="status">
+                Browser fullscreen is unavailable. The diagram is expanded
+                below.
+              </p>
+            )}
+            <div
+              className="flow-scroll"
+              tabIndex={0}
+              role="region"
+              aria-label="Sankey money flow, horizontally scrollable. Full values available in the flow list below."
             >
-              {[
-                "Income and funding",
-                "Funding accounts",
-                "Payment accounts",
-                "Bills and unallocated",
-              ].map((s, i) => (
-                <text
-                  x={15 + i * 330}
-                  y={22}
-                  key={s}
-                  fontSize="14"
-                  fontWeight="600"
-                >
-                  {s}
-                </text>
-              ))}
-              {paths.map((p: any, i: number) => (
-                <path
-                  key={i}
-                  d={p.path}
-                  fill="none"
-                  stroke={colors[p.kind]}
-                  strokeOpacity={0.45}
-                  strokeWidth={p.w}
-                >
-                  <title>
-                    {p.kind}: {money(p.amount)}
-                  </title>
-                </path>
-              ))}
-              {nodes.map((n: any) => (
-                <g key={n.id}>
-                  <rect
-                    x={n.x}
-                    y={n.y}
-                    width={12}
-                    height={n.h}
-                    fill="#34343c"
-                  />
-                  <text x={n.x + 17} y={n.y + 12} fontSize="12">
+              <svg
+                viewBox={`0 0 1160 ${height}`}
+                style={{ minWidth: 1000 }}
+                role="img"
+                aria-label={`Money flow for ${month}. See flow list below for all connections and values.`}
+              >
+                {[
+                  "Income and funding",
+                  "Funding accounts",
+                  "Payment accounts",
+                  "Bills and unallocated",
+                ].map((s, i) => (
+                  <text
+                    x={15 + i * 330}
+                    y={22}
+                    key={s}
+                    fontSize="14"
+                    fontWeight="600"
+                  >
+                    {s}
+                  </text>
+                ))}
+                {paths.map((p: any, i: number) => (
+                  <path
+                    key={i}
+                    d={p.path}
+                    fill="none"
+                    stroke={colors[p.kind]}
+                    strokeOpacity={0.45}
+                    strokeWidth={p.w}
+                  >
                     <title>
-                      {n.name} · {money(n.value)}
+                      {p.kind}: {money(p.amount)}
                     </title>
-                    {n.name.length > 25 ? n.name.slice(0, 24) + "…" : n.name}
-                  </text>
-                  <text x={n.x + 17} y={n.y + 28} fontSize="12">
-                    {money(n.value)}
-                  </text>
-                </g>
-              ))}
-            </svg>
+                  </path>
+                ))}
+                {nodes.map((n: any) => (
+                  <g key={n.id}>
+                    <rect
+                      x={n.x}
+                      y={n.y}
+                      width={12}
+                      height={n.h}
+                      fill="#34343c"
+                    />
+                    <text x={n.x + 17} y={n.y + 12} fontSize="12">
+                      <title>
+                        {n.name} · {money(n.value)}
+                      </title>
+                      {n.name.length > 25 ? n.name.slice(0, 24) + "…" : n.name}
+                    </text>
+                    <text x={n.x + 17} y={n.y + 28} fontSize="12">
+                      {money(n.value)}
+                    </text>
+                  </g>
+                ))}
+              </svg>
+            </div>
           </div>
           <section className="panel">
             <h2>Flow details</h2>
