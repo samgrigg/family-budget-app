@@ -764,3 +764,36 @@ input[type="month"] {
   height: 80vh;
   overflow: auto;
 }
+
+.flow-settings {
+  width: min(36rem, calc(100% - 2rem));
+  max-height: 85vh;
+  overflow: auto;
+  border: 1px solid #a1a1aa;
+  border-radius: 0.5rem;
+  padding: 1.25rem;
+  color: #18181b;
+  background: #fff;
+}
+.flow-settings::backdrop {
+  background: rgb(0 0 0 / 0.4);
+}
+.flow-setting-account {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 44px;
+  padding: 0.625rem 0;
+  overflow-wrap: anywhere;
+}
+.flow-setting-account input {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+.network-node {
+  cursor: pointer;
+}
+.network-node:focus-visible {
+  outline: 3px solid #2563eb;
+}

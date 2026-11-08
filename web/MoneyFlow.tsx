@@ -1,3 +1,4 @@
+import { flowNetwork } from "./flowNetwork";
 import { useEffect, useRef, useState } from "react";
 export default function MoneyFlow({ api }: any) {
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7)),
@@ -8,6 +9,28 @@ export default function MoneyFlow({ api }: any) {
   const chart = useRef<HTMLDivElement>(null);
   const [fullscreen, setFullscreen] = useState(false),
     [expanded, setExpanded] = useState(false);
+  const settings = useRef<HTMLDialogElement>(null);
+  const [hidden, setHidden] = useState<string[]>(() => {
+    try {
+      const value = JSON.parse(
+        localStorage.getItem("flow-hidden-accounts") ?? "[]",
+      );
+      return Array.isArray(value)
+        ? value.filter((v) => typeof v === "string")
+        : [];
+    } catch {
+      return [];
+    }
+  });
+  const [focusNode, setFocusNode] = useState<string | null>(null);
+  const changeHidden = (next: string[]) => {
+    setHidden(next);
+    setSelected(null);
+    setFocusNode(null);
+    try {
+      localStorage.setItem("flow-hidden-accounts", JSON.stringify(next));
+    } catch {}
+  };
   useEffect(() => {
     const changed = () =>
       setFullscreen(document.fullscreenElement === chart.current);
@@ -55,64 +78,45 @@ export default function MoneyFlow({ api }: any) {
   }, [month, currency]);
   const money = (n: number) =>
     `${currency === "USD" ? "$" : `${currency} `}${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  const nodes = (data?.nodes ?? []).map((n: any) => ({
-    ...n,
-    value: Math.max(
-      data.links
-        .filter((e: any) => e.source === n.id)
-        .reduce((a: number, e: any) => a + e.amount, 0),
-      data.links
-        .filter((e: any) => e.target === n.id)
-        .reduce((a: number, e: any) => a + e.amount, 0),
-    ),
-  }));
+  const network = data
+    ? flowNetwork(data, hidden)
+    : { accounts: [], nodes: [], links: [] };
+  const nodes = network.nodes.map((n: any) => ({ ...n }));
   const height = Math.max(
-    500,
-    ...[0, 1, 2, 3].map(
-      (col) => nodes.filter((n: any) => n.column === col).length * 64 + 80,
+    600,
+    ...["Income", "Account", "Bill"].map(
+      (kind) => nodes.filter((n: any) => n.kind === kind).length * 100 + 100,
     ),
   );
-  const scale = Math.min(
-    ...[0, 1, 2, 3].map((col) => {
-      const ns = nodes.filter((n: any) => n.column === col);
-      return ns.length
-        ? (height - 100 - ns.length * 40) /
-            ns.reduce((a: number, n: any) => a + n.value, 0)
-        : Infinity;
-    }),
-  );
-  for (const col of [0, 1, 2, 3]) {
-    let y = 60;
-    for (const n of nodes.filter((n: any) => n.column === col)) {
-      n.x = 15 + col * 330;
-      n.y = y;
-      n.h = n.value * scale;
-      n.out = 0;
-      n.into = 0;
-      y += n.h + 40;
-    }
+  for (const kind of ["Income", "Account", "Bill"]) {
+    const group = nodes.filter((n: any) => n.kind === kind);
+    group.forEach((n: any, i: number) => {
+      n.x =
+        kind === "Income" ? 130 : kind === "Bill" ? 1070 : 550 + (i % 2) * 90;
+      n.y = 80 + (i * (height - 140)) / Math.max(group.length - 1, 1);
+    });
   }
+  const maxAmount = Math.max(1, ...network.links.map((e: any) => e.amount));
   const colors: any = {
     Income: "#25634b",
     Bill: "#62418a",
     "Internal transfer": "#3569a6",
-    "Same account": "#7a8190",
-    "Untraced funding": "#8a6b35",
-    Unallocated: "#888888",
   };
-  const paths = (data?.links ?? []).map((e: any) => {
+  const paths = network.links.map((e: any) => {
     const a = nodes.find((n: any) => n.id === e.source),
-      b = nodes.find((n: any) => n.id === e.target),
-      w = e.amount * scale,
-      sy = a.y + a.out + w / 2,
-      ty = b.y + b.into + w / 2;
-    a.out += w;
-    b.into += w;
-    return {
-      ...e,
-      path: `M${a.x + 12},${sy} C${a.x + 170},${sy} ${b.x - 160},${ty} ${b.x},${ty}`,
-      w,
-    };
+      b = nodes.find((n: any) => n.id === e.target);
+    const dx = b.x - a.x,
+      dy = b.y - a.y,
+      len = Math.hypot(dx, dy) || 1;
+    const sx = a.x + (dx / len) * 23,
+      sy = a.y + (dy / len) * 23,
+      tx = b.x - (dx / len) * 29,
+      ty = b.y - (dy / len) * 29;
+    const path =
+      e.kind === "Internal transfer"
+        ? `M${sx},${sy} Q${Math.max(a.x, b.x) + (dy > 0 ? 170 : -170)},${(sy + ty) / 2} ${tx},${ty}`
+        : `M${sx},${sy} C${sx + 140},${sy} ${tx - 140},${ty} ${tx},${ty}`;
+    return { ...e, path, w: 1 + (e.amount / maxAmount) * 18 };
   });
   return (
     <>
@@ -120,8 +124,9 @@ export default function MoneyFlow({ api }: any) {
         Money Flow
       </h1>
       <p>
-        Recorded income → accounts → transfers → bill payments. Band widths
-        represent amounts.
+        Each account appears once. Arrows show direction; thicker edges
+        represent larger amounts. Select an account to highlight its
+        connections.
       </p>
       <div className="flow-filters">
         <label>
@@ -147,13 +152,10 @@ export default function MoneyFlow({ api }: any) {
         </label>
       </div>
       <p>
-        Accounts appear in two stages to show routing, including transfers in
-        either direction. This is aggregate monthly flow, not a trace of
-        individual dollars. Uses confirmed income, bills, and internal
-        transfers. Untraced funding and unallocated money balance the diagram;
-        they are not measured balances or verified transactions. Transfers use
-        their outgoing posting month, even if the deposit posts later. Hidden
-        accounts can appear along transfer paths.
+        Confirmed income, bill payments, and internal transfers for the selected
+        month. This shows aggregate movement, not a trace of individual dollars
+        or account balances. Transfer dates use the outgoing posting date.
+        Settings hide accounts in this chart only.
       </p>
       {error && (
         <p role="alert" className="error">
@@ -167,7 +169,7 @@ export default function MoneyFlow({ api }: any) {
           another month.
         </p>
       )}
-      {data && nodes.length > 0 && (
+      {data && (
         <>
           <div
             ref={chart}
@@ -175,6 +177,13 @@ export default function MoneyFlow({ api }: any) {
           >
             <div className="flow-toolbar">
               <strong>Money Flow · {month}</strong>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => settings.current?.showModal()}
+              >
+                Settings
+              </button>
               <button
                 type="button"
                 className="secondary"
@@ -194,65 +203,175 @@ export default function MoneyFlow({ api }: any) {
                 below.
               </p>
             )}
+            <dialog
+              ref={settings}
+              className="flow-settings"
+              aria-labelledby="flow-settings-title"
+            >
+              <h2 id="flow-settings-title">Visible accounts</h2>
+              <p>
+                Choose accounts to show. Connected edges are hidden with an
+                account. Budgeting visibility is unchanged.
+              </p>
+              <div className="actions">
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => changeHidden([])}
+                >
+                  Show all
+                </button>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() =>
+                    changeHidden(network.accounts.map((a) => a.id))
+                  }
+                >
+                  Hide all
+                </button>
+              </div>
+              {network.accounts.length === 0 && (
+                <p>No accounts with flow activity in this month.</p>
+              )}
+              {network.accounts.map((a) => (
+                <label className="flow-setting-account" key={a.id}>
+                  <input
+                    type="checkbox"
+                    checked={!hidden.includes(a.id)}
+                    onChange={(e) =>
+                      changeHidden(
+                        e.target.checked
+                          ? hidden.filter((id) => id !== a.id)
+                          : [...hidden, a.id],
+                      )
+                    }
+                  />
+                  <span>{a.name}</span>
+                </label>
+              ))}
+              <form method="dialog">
+                <button autoFocus>Done</button>
+              </form>
+            </dialog>
+            {focusNode && (
+              <div className="flow-toolbar">
+                <span>{nodes.find((n: any) => n.id === focusNode)?.name}</span>
+                <button
+                  className="secondary"
+                  onClick={() => setFocusNode(null)}
+                >
+                  Clear highlight
+                </button>
+              </div>
+            )}
+            {!nodes.length && (
+              <p>
+                No visible flows. Use Settings to show accounts, or choose
+                another month.
+              </p>
+            )}
             <div
               className="flow-scroll"
               tabIndex={0}
               role="region"
-              aria-label="Sankey money flow, horizontally scrollable. Full values available in the flow list below."
+              aria-label="Directed money flow network, horizontally scrollable. Full values in the list below."
             >
               <svg
-                viewBox={`0 0 1160 ${height}`}
+                viewBox={`0 0 1200 ${height}`}
                 style={{ minWidth: 1000 }}
-                role="img"
-                aria-label={`Money flow for ${month}. See flow list below for all connections and values.`}
+                role="group"
+                aria-label={`Money flow network for ${month}`}
               >
-                {[
-                  "Income and funding",
-                  "Funding accounts",
-                  "Payment accounts",
-                  "Bills and unallocated",
-                ].map((s, i) => (
-                  <text
-                    x={15 + i * 330}
-                    y={22}
-                    key={s}
-                    fontSize="14"
-                    fontWeight="600"
-                  >
-                    {s}
-                  </text>
-                ))}
+                <defs>
+                  {Object.entries(colors).map(([kind, color]) => (
+                    <marker
+                      id={`arrow-${kind.replaceAll(" ", "-")}`}
+                      key={kind}
+                      viewBox="0 0 10 10"
+                      refX="9"
+                      refY="5"
+                      markerWidth="8"
+                      markerHeight="8"
+                      orient="auto"
+                      markerUnits="userSpaceOnUse"
+                    >
+                      <path d="M 0 0 L 10 5 L 0 10 z" fill={color as string} />
+                    </marker>
+                  ))}
+                </defs>
                 {paths.map((p: any, i: number) => (
-                  <path
+                  <g
                     key={i}
-                    d={p.path}
-                    fill="none"
-                    stroke={colors[p.kind]}
-                    strokeOpacity={0.45}
-                    strokeWidth={p.w}
+                    opacity={
+                      !focusNode ||
+                      p.source === focusNode ||
+                      p.target === focusNode
+                        ? 1
+                        : 0.12
+                    }
                   >
-                    <title>
-                      {p.kind}: {money(p.amount)}
-                    </title>
-                  </path>
+                    <path
+                      d={p.path}
+                      fill="none"
+                      stroke={colors[p.kind]}
+                      strokeWidth={p.w}
+                      strokeOpacity={0.65}
+                      markerEnd={`url(#arrow-${p.kind.replaceAll(" ", "-")})`}
+                    >
+                      <title>
+                        {p.kind}: {money(p.amount)}
+                      </title>
+                    </path>
+                  </g>
                 ))}
                 {nodes.map((n: any) => (
-                  <g key={n.id}>
-                    <rect
-                      x={n.x}
-                      y={n.y}
-                      width={12}
-                      height={n.h}
-                      fill="#34343c"
+                  <g
+                    key={n.id}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`${n.kind}: ${n.name}. Highlight connections`}
+                    aria-pressed={focusNode === n.id}
+                    onClick={() =>
+                      setFocusNode(focusNode === n.id ? null : n.id)
+                    }
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setFocusNode(focusNode === n.id ? null : n.id);
+                      }
+                    }}
+                    className="network-node"
+                  >
+                    <circle
+                      cx={n.x}
+                      cy={n.y}
+                      r={24}
+                      fill={focusNode === n.id ? "#18181b" : "white"}
+                      stroke="#34343c"
+                      strokeWidth={2}
                     />
-                    <text x={n.x + 17} y={n.y + 12} fontSize="12">
-                      <title>
-                        {n.name} · {money(n.value)}
-                      </title>
-                      {n.name.length > 25 ? n.name.slice(0, 24) + "…" : n.name}
+                    <text
+                      x={n.x}
+                      y={n.y + 5}
+                      textAnchor="middle"
+                      fontSize="13"
+                      fill={focusNode === n.id ? "white" : "#18181b"}
+                    >
+                      {n.kind === "Account"
+                        ? "A"
+                        : n.kind === "Income"
+                          ? "I"
+                          : "B"}
                     </text>
-                    <text x={n.x + 17} y={n.y + 28} fontSize="12">
-                      {money(n.value)}
+                    <text
+                      x={n.x}
+                      y={n.y + 44}
+                      textAnchor="middle"
+                      fontSize="13"
+                    >
+                      <title>{n.name}</title>
+                      {n.name.length > 30 ? n.name.slice(0, 29) + "…" : n.name}
                     </text>
                   </g>
                 ))}
@@ -271,7 +390,7 @@ export default function MoneyFlow({ api }: any) {
               </p>
             )}
             <ul className="flow-list">
-              {data.links.map((e: any, i: number) => (
+              {network.links.map((e: any, i: number) => (
                 <li key={i}>
                   <button className="secondary" onClick={() => setSelected(e)}>
                     {e.kind}: {nodes.find((n: any) => n.id === e.source)?.name}{" "}
