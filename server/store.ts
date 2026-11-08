@@ -245,6 +245,43 @@ export class Store {
         .run(status, this.env, id);
     })();
   }
+  resolveMissingAccess(id: string) {
+    return this.db.transaction(() => {
+      const source = this.db
+        .prepare("SELECT 1 FROM data_sources WHERE env=? AND id=?")
+        .get(this.env, id);
+      if (!source) return "missing";
+      const connection = this.db
+        .prepare("SELECT token FROM connections WHERE env=? AND id=?")
+        .get(this.env, id) as any;
+      if (connection?.token) return "credential_present";
+      this.db
+        .prepare(
+          "INSERT INTO connections(env,id,token,cursor,status,last_sync) VALUES(?,?,NULL,NULL,'historical',NULL) ON CONFLICT(env,id) DO UPDATE SET status='historical',token=NULL",
+        )
+        .run(this.env, id);
+      this.db
+        .prepare(
+          "UPDATE data_sources SET status='historical' WHERE env=? AND id=?",
+        )
+        .run(this.env, id);
+      this.db
+        .prepare(
+          "INSERT INTO decision_history(env,kind,legacy_key,payload,archived_at) VALUES(?,?,?,?,?)",
+        )
+        .run(
+          this.env,
+          "source_authorization",
+          id,
+          JSON.stringify({
+            authorizationBasis: "owner_confirmed_external_revocation",
+            providerRevocationVerified: false,
+          }),
+          new Date().toISOString(),
+        );
+      return "resolved";
+    })();
+  }
   deleteAccount(id: string) {
     this.db.transaction(() => {
       const mappings = this.db
@@ -256,7 +293,7 @@ export class Store {
       if (mappings.some((m) => m.status !== "historical" || m.token))
         throw Object.assign(
           Error(
-            "Disconnect every source for this account before deleting its history.",
+            "Disconnect every source for this account before deleting its history. If its credential is missing, revoke access through your institution or Plaid Portal, then confirm external revocation using resolve-missing-access.",
           ),
           { code: "SOURCE_AUTHORIZED" },
         );

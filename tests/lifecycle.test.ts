@@ -165,3 +165,119 @@ it("deletion guards every linked source and preserves unrelated decisions", asyn
   ).toEqual({ name: "Other account bill" });
   f.store.db.close();
 });
+
+it("requires explicit external revocation for migrated orphan sources", async () => {
+  const f = await fixture();
+  f.store.db.prepare("DELETE FROM connections WHERE id='source'").run();
+  // Recreate the migration-origin shape: raw legacy account/transaction evidence only.
+  for (const table of [
+    "source_accounts",
+    "account_id_aliases",
+    "app_accounts",
+    "data_sources",
+  ])
+    f.store.db.prepare(`DELETE FROM ${table}`).run();
+  const [a, b] = f.store.repository.listAccounts();
+  expect(
+    (
+      await request(f.app)
+        .post("/api/data-sources/source/resolve-missing-access")
+        .set("Host", "localhost:3000")
+        .send({ confirmAccessRevoked: true })
+    ).status,
+  ).toBe(403);
+  const detail = await request(f.app)
+    .get(`/api/accounts/${a.id}`)
+    .set("Host", "localhost:3000");
+  expect(detail.body.sources[0].missingAccessAction).toContain(
+    "Revoke access externally",
+  );
+
+  expect(
+    (await f.post(`/api/accounts/${a.id}/delete`, { confirm: true })).status,
+  ).toBe(409);
+  expect(
+    (await f.post("/api/data-sources/source/resolve-missing-access")).status,
+  ).toBe(400);
+  expect(
+    (
+      await f.post("/api/data-sources/missing/resolve-missing-access", {
+        confirmAccessRevoked: true,
+      })
+    ).status,
+  ).toBe(404);
+  const resolved = await f.post(
+    "/api/data-sources/source/resolve-missing-access",
+    { confirmAccessRevoked: true },
+  );
+  expect(resolved.status).toBe(200);
+  expect(resolved.body.authorizationBasis).toBe(
+    "owner_confirmed_external_revocation",
+  );
+  expect(f.calls()).toBe(0);
+  expect(f.store.connection("source").token).toBeNull();
+  expect(f.store.repository.analyticalHistory("all")).toHaveLength(1);
+  expect(
+    (await f.post(`/api/accounts/${a.id}/delete`, { confirm: true })).status,
+  ).toBe(200);
+  expect(f.store.repository.listAccounts().map((a) => a.id)).toEqual([b.id]);
+  f.store.db.close();
+});
+it("rejects missing-access resolution for a source with a credential", async () => {
+  const f = await fixture();
+  expect(
+    (
+      await f.post("/api/data-sources/source/resolve-missing-access", {
+        confirmAccessRevoked: true,
+      })
+    ).status,
+  ).toBe(409);
+  expect(f.store.token("source")).toBe("test-secret");
+  expect(f.calls()).toBe(0);
+  f.store.db.close();
+});
+it("rolls back local finalization after remote removal and retries ITEM_NOT_FOUND", async () => {
+  const f = await fixture();
+  f.store.db.exec(
+    "CREATE TRIGGER fail_historical BEFORE UPDATE ON data_sources WHEN NEW.status='historical' BEGIN SELECT RAISE(ABORT,'stub write failure'); END",
+  );
+  const encrypted = f.store.connection("source").token;
+  expect((await f.post("/api/data-sources/source/disconnect")).status).toBe(
+    502,
+  );
+  expect(f.store.connection("source").token).toBe(encrypted);
+  expect(f.store.connection("source").status).not.toBe("historical");
+  expect(
+    (
+      f.store.db
+        .prepare("SELECT status FROM data_sources WHERE id='source'")
+        .get() as any
+    ).status,
+  ).not.toBe("historical");
+  f.store.db.exec("DROP TRIGGER fail_historical");
+  // A provider that confirms the Item was already removed finalizes safely.
+  const app = createApp(
+    f.store,
+    {
+      configured: true,
+      call: async () => {
+        throw Object.assign(Error(), { code: "ITEM_NOT_FOUND" });
+      },
+    },
+    origin,
+  );
+  const session = await request(app)
+    .get("/api/state")
+    .set("Host", "localhost:3000");
+  const r = await request(app)
+    .post("/api/data-sources/source/disconnect")
+    .set("Host", "localhost:3000")
+    .set("Origin", origin)
+    .set("Cookie", session.headers["set-cookie"])
+    .set("X-CSRF-Token", session.body.csrf)
+    .send({});
+  expect(r.status).toBe(200);
+  expect(f.store.connection("source").token).toBeNull();
+  expect(f.store.list()[0].status).toBe("historical");
+  f.store.db.close();
+});

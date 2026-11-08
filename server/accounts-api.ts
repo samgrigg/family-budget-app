@@ -31,12 +31,18 @@ export function installAccountApi(app: express.Express, store: Store) {
     }
     const sources = store.db
       .prepare(
-        "SELECT d.id,d.provider,d.label,d.status,d.requested_days,d.last_checked,s.provider_account_id FROM source_accounts s JOIN data_sources d ON d.env=s.env AND d.id=s.source_id WHERE s.env=? AND s.account_id=?",
+        "SELECT d.id,d.provider,d.label,d.status,d.requested_days,d.last_checked,s.provider_account_id,CASE WHEN c.token IS NULL THEN 1 ELSE 0 END AS missingAccessCredential FROM source_accounts s JOIN data_sources d ON d.env=s.env AND d.id=s.source_id LEFT JOIN connections c ON c.env=d.env AND c.id=d.id WHERE s.env=? AND s.account_id=?",
       )
       .all(store.env, account.id);
     res.json({
       account,
-      sources,
+      sources: (sources as any[]).map((source) => ({
+        ...source,
+        missingAccessAction:
+          source.missingAccessCredential && source.status !== "historical"
+            ? "Revoke access externally, then confirm using resolve-missing-access."
+            : null,
+      })),
       coverage: store.repository.coverage(account.id),
       transactions: page.rows,
       nextCursor: page.nextCursor,

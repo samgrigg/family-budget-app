@@ -349,6 +349,47 @@ export function createApp(
       }
     },
   );
+  app.post(
+    "/api/data-sources/:id/resolve-missing-access",
+    async (req, res, next) => {
+      if (req.body?.confirmAccessRevoked !== true)
+        return res
+          .status(400)
+          .json({
+            error:
+              "First revoke this source's access through your institution or Plaid Portal. Then explicitly confirm external revocation with confirmAccessRevoked: true. Missing credentials alone do not establish revocation.",
+          });
+      const id = String(req.params.id);
+      try {
+        let result: string | undefined;
+        await exclusive(id, async () => {
+          result = recovery.has(id)
+            ? "credential_present"
+            : store.resolveMissingAccess(id);
+        });
+        if (result === "missing")
+          return res.status(404).json({ error: "Source not found." });
+        if (result === "credential_present")
+          return res
+            .status(409)
+            .json({
+              error:
+                "This source still has an access credential. Use Disconnect to revoke access.",
+              code: "CREDENTIAL_PRESENT",
+            });
+        res.json({
+          sourceId: id,
+          status: "historical",
+          authorizationBasis: "owner_confirmed_external_revocation",
+          providerRevocationVerified: false,
+          notice:
+            "Historical status records your confirmation that access was revoked externally. This app did not verify provider revocation. Saved history remains available.",
+        });
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
   installAccountApi(app, store);
   // Compatibility alias: disconnect now preserves all local history.
   app.post(
