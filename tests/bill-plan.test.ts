@@ -29,7 +29,21 @@ it("saves idempotently and isolates environments; excluded rows do not fund acco
   expect(
     planState(new Store(s.db, Buffer.alloc(32), "production"), []).records,
   ).toHaveLength(0);
-  savePlan(s, { ...draft, status: "excluded" }, []);
+  savePlan(
+    s,
+    {
+      ...draft,
+      amount: "125.00",
+      notes: "Keep this detail",
+      status: "excluded",
+    },
+    [],
+  );
+  expect(planState(s, []).records[0]).toMatchObject({
+    amount: "125.00",
+    notes: "Keep this detail",
+    status: "excluded",
+  });
   expect(planState(s, []).totals).toHaveLength(0);
   s.db.close();
 });

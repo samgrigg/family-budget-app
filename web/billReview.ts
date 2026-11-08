@@ -14,3 +14,9 @@ export function nextBillToReview(
     )?.id ?? null
   );
 }
+
+export function budgetPlanEntries<T extends { status: string }>(
+  records: T[],
+): T[] {
+  return records.filter((record) => record.status !== "excluded");
+}

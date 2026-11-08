@@ -73,6 +73,6 @@ Expand an entry, review its actual payment amount, account, frequency, optional 
 
 Bills Overview shows confirmed plan funding by account and currency, including monthly set-asides for quarterly, semiannual and annual payments. The observed history estimate remains separate: do not add it to planned totals. Plans retain worksheet account labels without linking them to bank identities. Payment days are retained as entered, not used to assert contractual due dates.
 
-Reviewed decisions persist in SQLite per environment and source cell. Re-staging refreshes unreviewed drafts; saved decisions take precedence. Exclusion is reversible by reopening and confirming an entry. Import only the original layout: moving rows in the workbook changes cell-based identities. Do not commit staging files or the local database.
+Reviewed decisions persist in SQLite per environment and source cell. Re-staging refreshes unreviewed drafts; saved decisions take precedence. Excluded entries retain their edited details locally, disappear from the Budget list and do not contribute to funding totals. A restore interface is not yet provided. Import only the original layout: moving rows in the workbook changes cell-based identities. Do not commit staging files or the local database.
 
 Checks: `python3 -m unittest discover -s tests -p '*_test.py'` plus the usual npm checks. VoiceOver, enlarged text and live-browser review of the new forms remain outstanding.

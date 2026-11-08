@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { nextBillToReview } from "../web/billReview";
+import { budgetPlanEntries, nextBillToReview } from "../web/billReview";
 const records = [
   { id: "first", status: "review", kind: "bill" },
   { id: "current", status: "confirmed", kind: "bill" },
@@ -27,4 +27,18 @@ it("finishes without reopening the current bill when nothing else needs review",
       "current",
     ),
   ).toBeNull();
+});
+
+it("hides excluded bills from Budget while preserving confirmed and unreviewed entries", () => {
+  expect(budgetPlanEntries(records).map((r) => r.id)).toEqual([
+    "first",
+    "current",
+    "saved",
+    "transfer",
+    "next",
+  ]);
+  expect(records.find((r) => r.id === "excluded")?.status).toBe("excluded");
+});
+it("advances from an excluded bill using its original list position", () => {
+  expect(nextBillToReview(records, "excluded")).toBe("next");
 });

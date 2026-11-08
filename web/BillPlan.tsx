@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { nextBillToReview } from "./billReview";
+import { budgetPlanEntries, nextBillToReview } from "./billReview";
 const money = (value: number, currency: string) =>
   new Intl.NumberFormat(undefined, { style: "currency", currency }).format(
     value,
@@ -17,6 +17,7 @@ export default function BillPlan({
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false);
+  const heading = useRef<HTMLHeadingElement>(null);
   const entries = useRef(new Map<string, HTMLDetailsElement>());
   const [advanceFrom, setAdvanceFrom] = useState<string | null>(null);
   useEffect(() => {
@@ -27,8 +28,12 @@ export default function BillPlan({
     const next = nextId ? entries.current.get(nextId) : undefined;
     if (next) next.open = true;
     const target = next ?? current;
-    target?.querySelector("summary")?.focus({ preventScroll: true });
-    target?.scrollIntoView({ block: "start", inline: "nearest" });
+    const focusTarget = target?.querySelector("summary") ?? heading.current;
+    focusTarget?.focus({ preventScroll: true });
+    (target ?? heading.current)?.scrollIntoView({
+      block: "start",
+      inline: "nearest",
+    });
     setAdvanceFrom(null);
   }, [advanceFrom, data]);
   const reload = async () => {
@@ -72,12 +77,13 @@ export default function BillPlan({
         status,
       });
       await reload();
-      if (status === "confirmed") setAdvanceFrom(row.id);
+      if (status === "confirmed" || status === "excluded")
+        setAdvanceFrom(row.id);
       setNotice(
         status === "confirmed"
           ? "Bill confirmed. Funding totals updated."
           : status === "excluded"
-            ? "Entry excluded from funding totals."
+            ? "Bill details saved. Excluded from Budget and funding totals."
             : "Changes saved for review.",
       );
     } catch (e: any) {
@@ -91,7 +97,9 @@ export default function BillPlan({
     data?.records.filter((r: any) => r.status === "review").length ?? 0;
   return (
     <section className="panel" aria-label="Planned bill commitments">
-      <h2>Planned commitments</h2>
+      <h2 ref={heading} tabIndex={-1}>
+        Planned commitments
+      </h2>
       <p>
         From your Bills worksheet. These are your plans; transaction patterns
         are shown separately and are not added to these totals.
@@ -157,7 +165,7 @@ export default function BillPlan({
                   described in the README.
                 </p>
               )}
-              {data.records.map((r: any) => (
+              {budgetPlanEntries(data.records).map((r: any) => (
                 <details
                   className="bill plan-entry"
                   key={r.id}

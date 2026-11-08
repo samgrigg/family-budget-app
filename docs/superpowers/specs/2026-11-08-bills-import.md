@@ -15,3 +15,9 @@ Web adaptation: semantic details/forms, direct labels, existing system typograph
 Owner requested that Confirm Bill close the entry and take them to the next confirmation. After a successful save and reload, collapse the current native details, open the next unreviewed bill (skip confirmed, excluded and transfer entries; wrap to earlier outstanding bills), focus its summary and scroll it into view after React commits the refreshed layout. When no bill remains, close the current entry and focus its summary. Failed saves leave the entry open. Save for review and exclusion keep their existing interaction.
 
 Current HIG focus-and-selection and disclosure-controls references were consulted; text fetch returned JavaScript shells. Uses native web details/summary focus rather than a custom accordion, with immediate scrolling and no added animation. Three queue-selection tests, typecheck and production build pass. Actual browser focus/scroll, enlarged text and VoiceOver checks remain outstanding.
+
+## Exclusion visibility update
+
+Owner clarified: Exclude from plan saves the current edited details and excludes the bill from Budget. Excluded records remain stored and counted as excluded, but are not rendered in the Budget list or included in funding totals. Successful exclusion advances to the next pending bill using the complete record order. If no next bill remains, focus the Planned commitments heading because the excluded row is removed. Failed saves preserve the open entry. Save for review does not advance. No restore interface is provided yet.
+
+Web adaptation retains native details/summary and uses a programmatically focusable heading as the fallback after removal. Current HIG disclosure-controls reference consulted; text fetch returned the JavaScript shell. Live browser focus/scroll and assistive technology checks remain unverified.
