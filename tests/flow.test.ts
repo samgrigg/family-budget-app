@@ -1,3 +1,4 @@
+import { installBills } from "../server/bills";
 import { expect, it } from "vitest";
 import { buildFlow } from "../server/flow";
 const t = (account: string, amount: number) => ({
@@ -82,4 +83,57 @@ it("separates modeled savings from other residuals without counting transfers ou
         .filter((e) => e.source === n.id)
         .reduce((s, e) => s + e.amount, 0),
     );
+});
+
+import { Store } from "../server/store";
+import { flowState } from "../server/flow";
+it("includes unconfirmed spending and deposits, global-hidden accounts, and inactive account choices", () => {
+  const s = new Store(":memory:", Buffer.alloc(32), "sandbox");
+  s.connect("c", "token", [
+    { account_id: "a", name: "Checking", type: "depository" },
+    { account_id: "b", name: "Savings", type: "depository" },
+    { account_id: "inactive", name: "Unused" },
+  ]);
+  s.setAccountHidden("c", "a", true);
+  for (const [id, account, name, amount, pending] of [
+    ["pay", "a", "ACH Deposit COMPANY: EXAMPLE INC ENTRY: PAYROLL", -1000, 0],
+    ["shop", "a", "Groceries", 100, 0],
+    ["refund", "a", "Refund", -10, 0],
+    ["interest", "b", "Interest", -5, 0],
+    ["pending", "a", "Pending purchase", 50, 1],
+  ] as const)
+    s.db
+      .prepare("INSERT INTO transactions VALUES(?,?,?,?,?,?,?,?,?)")
+      .run(
+        s.env,
+        "c",
+        id,
+        account,
+        "2026-11-01",
+        name,
+        String(amount),
+        "USD",
+        pending,
+      );
+  installBills(s);
+  const g = flowState(s, "2026-11", "USD");
+  expect(
+    g.links
+      .filter((e) => e.kind === "Spending")
+      .reduce((sum, e) => sum + e.amount, 0),
+  ).toBe(100);
+  expect(
+    g.links
+      .filter((e) => e.kind === "Income")
+      .reduce((sum, e) => sum + e.amount, 0),
+  ).toBe(1005);
+  expect(
+    g.links
+      .filter((e) => e.kind === "Other inflow")
+      .reduce((sum, e) => sum + e.amount, 0),
+  ).toBe(10);
+  expect(g.nodes.some((n) => n.name === "EXAMPLE INC")).toBe(true);
+  expect(g.nodes.some((n) => n.name === "Other income")).toBe(true);
+  expect(g.nodes.some((n) => n.id.includes("inactive"))).toBe(true);
+  s.db.close();
 });

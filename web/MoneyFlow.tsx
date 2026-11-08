@@ -104,6 +104,9 @@ export default function MoneyFlow({ api }: any) {
   const colors: any = {
     Income: "#25634b",
     Bill: "#62418a",
+    Spending: "#94634b",
+    "Other inflow": "#6d7c62",
+    "Debt payment": "#9a6840",
     "Internal transfer": "#3569a6",
   };
   const paths = network.links.map((e: any) => {
@@ -156,10 +159,11 @@ export default function MoneyFlow({ api }: any) {
         </label>
       </div>
       <p>
-        Confirmed income, bill payments, and internal transfers for the selected
+        All posted transactions across onboarded accounts for the selected
         month. This shows aggregate movement, not a trace of individual dollars
-        or account balances. Transfer dates use the outgoing posting date.
-        Settings hide accounts in this chart only.
+        or account balances. Matched movements appear when either leg posts in
+        the selected month; the other leg may post in an adjacent month. Pending
+        entries are excluded. Settings hide accounts in this chart only.
       </p>
       {error && (
         <p role="alert" className="error">
@@ -169,7 +173,7 @@ export default function MoneyFlow({ api }: any) {
       {!data && !error && <p role="status">Loading money flow…</p>}
       {data && !nodes.length && (
         <p>
-          No confirmed flows in this month. Review income and bills, or choose
+          No posted flows in this month. Show accounts in Settings, or choose
           another month.
         </p>
       )}
@@ -234,8 +238,9 @@ export default function MoneyFlow({ api }: any) {
             >
               <h2 id="flow-settings-title">Visible accounts</h2>
               <p>
-                Choose accounts to show. Connected edges are hidden with an
-                account. Budgeting visibility is unchanged.
+                Choose accounts to show. Sankey keeps movements across
+                hidden-account boundaries labeled. Budgeting visibility is
+                unchanged.
               </p>
               <div className="actions">
                 <button
@@ -255,9 +260,7 @@ export default function MoneyFlow({ api }: any) {
                   Hide all
                 </button>
               </div>
-              {network.accounts.length === 0 && (
-                <p>No accounts with flow activity in this month.</p>
-              )}
+              {network.accounts.length === 0 && <p>No onboarded accounts.</p>}
               {network.accounts.map((a) => (
                 <label className="flow-setting-account" key={a.id}>
                   <input

@@ -66,3 +66,39 @@ it("applies network account preferences to both Sankey account stages", () => {
   expect(result.nodes.map((n: any) => n.id)).toEqual(["before:b", "after:b"]);
   expect(filteredSankey(data).links).toHaveLength(3);
 });
+
+it("keeps transfers crossing the selected-account boundary explicit in Sankey", () => {
+  const data = {
+    nodes: [
+      { id: "before:a", name: "A" },
+      { id: "after:b", name: "B" },
+      { id: "before:b", name: "B" },
+      { id: "after:a", name: "A" },
+    ],
+    links: [
+      {
+        source: "before:a",
+        target: "after:b",
+        kind: "Internal transfer",
+        amount: 10,
+      },
+      {
+        source: "before:b",
+        target: "after:a",
+        kind: "Debt payment",
+        amount: 5,
+      },
+    ],
+  };
+  const filtered = filteredSankey(data, ["account:b"]);
+  expect(filtered.links.map((e: any) => e.kind)).toEqual([
+    "Boundary outflow",
+    "Boundary inflow",
+  ]);
+  expect(filtered.nodes.some((n: any) => n.name === "To hidden accounts")).toBe(
+    true,
+  );
+  expect(
+    filtered.nodes.some((n: any) => n.name === "From hidden accounts"),
+  ).toBe(true);
+});

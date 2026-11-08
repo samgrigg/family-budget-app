@@ -28,7 +28,14 @@ export function flowNetwork(data: any, hidden: string[] = []) {
   ];
   const links = data.links
     .filter((e: any) =>
-      ["Income", "Bill", "Internal transfer"].includes(e.kind),
+      [
+        "Income",
+        "Other inflow",
+        "Bill",
+        "Spending",
+        "Debt payment",
+        "Internal transfer",
+      ].includes(e.kind),
     )
     .map((e: any) => ({ ...e, source: id(e.source), target: id(e.target) }))
     .filter(
@@ -45,15 +52,33 @@ export function filteredSankey(data: any, hidden: string[] = []) {
       : id.startsWith("after:")
         ? `account:${id.slice(6)}`
         : id;
-  const links = data.links.filter(
-    (e: any) =>
-      !hidden.includes(accountId(e.source)) &&
-      !hidden.includes(accountId(e.target)),
-  );
+  const links = data.links.flatMap((e: any) => {
+    const sourceHidden = hidden.includes(accountId(e.source)),
+      targetHidden = hidden.includes(accountId(e.target));
+    if (!sourceHidden && !targetHidden) return [e];
+    if (sourceHidden && targetHidden) return [];
+    if (!["Internal transfer", "Debt payment"].includes(e.kind)) return [];
+    return [
+      {
+        ...e,
+        source: sourceHidden ? "income:hidden" : e.source,
+        target: targetHidden ? "bill:hidden" : e.target,
+        kind: sourceHidden ? "Boundary inflow" : "Boundary outflow",
+      },
+    ];
+  });
   const used = new Set(links.flatMap((e: any) => [e.source, e.target]));
   return {
     ...data,
     links,
-    nodes: data.nodes.filter((n: any) => used.has(n.id)),
+    nodes: [
+      ...data.nodes.filter((n: any) => used.has(n.id)),
+      ...(used.has("income:hidden")
+        ? [{ id: "income:hidden", name: "From hidden accounts", column: 0 }]
+        : []),
+      ...(used.has("bill:hidden")
+        ? [{ id: "bill:hidden", name: "To hidden accounts", column: 3 }]
+        : []),
+    ],
   };
 }

@@ -50,6 +50,11 @@ export default function Sankey({ data, month, money }: any) {
   const colors: any = {
     Income: "#25634b",
     Bill: "#62418a",
+    Spending: "#94634b",
+    "Boundary inflow": "#64748b",
+    "Boundary outflow": "#64748b",
+    "Other inflow": "#6d7c62",
+    "Debt payment": "#9a6840",
     "Internal transfer": "#3569a6",
     "Same account": "#7a8190",
     "Untraced funding": "#8a6b35",
@@ -86,8 +91,11 @@ export default function Sankey({ data, month, money }: any) {
         </p>
         <dl className="flow-story-totals">
           {[
-            ["Income", sumKind("Income")],
-            ["Bills", sumKind("Bill")],
+            [
+              "Income & other credits",
+              sumKind("Income") + sumKind("Other inflow"),
+            ],
+            ["Bills & other spending", sumKind("Bill") + sumKind("Spending")],
             ["Savings · modeled", sumKind("Savings")],
             ["Other / unallocated", sumKind("Unallocated")],
           ].map(([label, amount]) => (
@@ -98,9 +106,11 @@ export default function Sankey({ data, month, money }: any) {
           ))}
         </dl>
         <p className="fine">
-          Interest and dividends are grouped as Other income. Additional funding
-          is shown separately; these figures are not a balanced household
-          budget. {data.savingsBasis}
+          All posted activity is included; interest and dividends are grouped as
+          Other income. Debt payments are account movements, not additional
+          spending on top of card purchases. Additional funding is shown
+          separately; these figures are not a balanced household budget.{" "}
+          {data.savingsBasis}
         </p>
         {active && (
           <button

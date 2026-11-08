@@ -1,5 +1,5 @@
 import { billState } from "./bills";
-import { incomeState } from "./income";
+import { identifyEmployer, incomeState } from "./income";
 import { transactionKey } from "./transfers";
 import { transferState } from "./transfers";
 import type { Store } from "./store";
@@ -44,14 +44,14 @@ export function buildFlow(
       const a = id(t),
         n = Math.abs(Number(t.amount));
       get(a).income += n;
-      add(`income:${b.key}`, `before:${a}`, n, "Income");
+      add(`income:${b.key}`, `before:${a}`, n, b.kind || "Income");
     }
   for (const b of bills)
     for (const t of b.transactions) {
       const a = id(t),
         n = Number(t.amount);
       get(a).bills += n;
-      add(`after:${a}`, `bill:${b.key}`, n, "Bill");
+      add(`after:${a}`, `bill:${b.key}`, n, b.kind || "Bill");
     }
   for (const p of transfers) {
     const a = id(p.out),
@@ -59,7 +59,7 @@ export function buildFlow(
       n = Number(p.out.amount);
     get(a).outgoing += n;
     get(b).incoming += n;
-    add(`before:${a}`, `after:${b}`, n, "Internal transfer");
+    add(`before:${a}`, `after:${b}`, n, p.kind || "Internal transfer");
   }
   for (const a of accounts) {
     const t = get(a);
@@ -121,48 +121,115 @@ export function flowState(store: Store, month: string, currency: string) {
   );
   const inMonth = (t: any) =>
     t.date.startsWith(month) && t.currency === currency;
-  const prune = (sources: any[]) =>
-    sources
-      .map((b) => ({ ...b, transactions: b.transactions.filter(inMonth) }))
-      .filter((b) => b.transactions.length);
-  // Transfer legs can settle in different months; show the movement on its outgoing date.
-  const transfers = transferState(store).confirmed.filter((p) =>
-    inMonth(p.out),
-  );
-  const confirmedIncome = prune(incomeState(store).saved);
-  const seen = new Set(
-    confirmedIncome.flatMap((b) => b.transactions.map(transactionKey)),
-  );
-  const passive = store.db
+  const rows = store.db
     .prepare(
-      `SELECT t.* FROM transactions t JOIN accounts a ON a.env=t.env AND a.connection=t.connection AND a.id=t.account JOIN account_types at ON at.env=a.env AND at.connection=a.connection AND at.account=a.id WHERE t.env=? AND at.type='depository' AND pending=0 AND CAST(amount AS REAL)<0 AND substr(date,1,7)=? AND currency=? AND NOT EXISTS(SELECT 1 FROM account_preferences p WHERE p.env=a.env AND p.connection=a.connection AND p.account=a.id AND hidden=1)`,
+      "SELECT * FROM transactions WHERE env=? AND pending=0 ORDER BY date,id",
     )
-    .all(store.env, month, currency) as any[];
-  const otherTransactions = passive.filter(
-    (t) =>
-      !seen.has(transactionKey(t)) && /\b(interest|dividend)\b/i.test(t.name),
+    .all(store.env) as any[];
+  const types = store.db
+    .prepare("SELECT * FROM account_types WHERE env=?")
+    .all(store.env) as any[];
+  const type = (t: any) =>
+    types.find((a) => a.connection === t.connection && a.account === t.account)
+      ?.type;
+  const pairList = transferState(store).confirmed.map((p) => ({
+    ...p,
+    kind: "Internal transfer",
+  }));
+  const used = new Set(
+    pairList.flatMap((p) => [transactionKey(p.out), transactionKey(p.into)]),
   );
-  const grouped = new Map<string, any>();
-  for (const source of [
-    ...confirmedIncome,
-    { key: "other", name: "Other income", transactions: otherTransactions },
-  ]) {
-    const passiveSource = source.transactions.every((t: any) =>
-      /\b(interest|dividend)\b/i.test(t.name),
+  // Debt repayments connect two accounts, but remain distinct from internal transfers.
+  const debtCandidates = rows
+    .filter(
+      (t) =>
+        !used.has(transactionKey(t)) &&
+        Number(t.amount) > 0 &&
+        /\b(payment|pmt|epay|autopay)\b/i.test(t.name),
+    )
+    .flatMap((out) =>
+      rows
+        .filter(
+          (into) =>
+            !used.has(transactionKey(into)) &&
+            ["loan", "credit"].includes(type(into)) &&
+            !(
+              out.connection === into.connection && out.account === into.account
+            ) &&
+            into.currency === out.currency &&
+            Number(into.amount) === -Number(out.amount) &&
+            Math.abs(Date.parse(into.date) - Date.parse(out.date)) <=
+              5 * 86400000 &&
+            /\b(payment|pmt|autopay)\b/i.test(into.name),
+        )
+        .map((into) => ({ out, into, kind: "Debt payment" })),
     );
-    const name = passiveSource
-      ? "Other income"
-      : source.employer || source.name;
-    if (!source.transactions.length) continue;
-    const key = name.toLowerCase().trim();
-    const old = grouped.get(key);
-    grouped.set(key, {
-      key: encodeURIComponent(key),
+  for (const p of debtCandidates)
+    if (
+      debtCandidates.filter(
+        (q) =>
+          transactionKey(q.out) === transactionKey(p.out) ||
+          transactionKey(q.into) === transactionKey(p.into),
+      ).length === 1
+    ) {
+      pairList.push(p as any);
+      used.add(transactionKey(p.out));
+      used.add(transactionKey(p.into));
+    }
+  const incoming = new Map<string, any>(),
+    spending = new Map<string, any>();
+  const knownIncome = new Map<string, any>(
+    incomeState(store).saved.flatMap((b) =>
+      b.transactions.map((t: any) => [transactionKey(t), b] as const),
+    ),
+  );
+  const knownBills = new Map<string, any>(
+    billState(store, 12).saved.flatMap((b) =>
+      b.transactions.map((t: any) => [transactionKey(t), b] as const),
+    ),
+  );
+  const add = (
+    groups: Map<string, any>,
+    name: string,
+    kind: string,
+    t: any,
+  ) => {
+    const key = encodeURIComponent(JSON.stringify([kind, name.toLowerCase()]));
+    const old = groups.get(key);
+    groups.set(key, {
+      key,
       name,
-      transactions: [...(old?.transactions ?? []), ...source.transactions],
+      kind,
+      transactions: [...(old?.transactions ?? []), t],
     });
+  };
+  for (const t of rows.filter(inMonth)) {
+    if (
+      used.has(transactionKey(t)) ||
+      !Number.isFinite(Number(t.amount)) ||
+      Number(t.amount) === 0
+    )
+      continue;
+    if (Number(t.amount) < 0) {
+      const known = knownIncome.get(transactionKey(t));
+      const employer = identifyEmployer(t.name) || known?.employer;
+      const passive = /\b(interest|dividends?)\b/i.test(t.name);
+      const name = passive
+        ? "Other income"
+        : employer || known?.name || "Other deposits / credits";
+      add(
+        incoming,
+        name,
+        passive || employer || known ? "Income" : "Other inflow",
+        t,
+      );
+    } else {
+      const b = knownBills.get(transactionKey(t));
+      add(spending, b?.name || t.name, b ? "Bill" : "Spending", t);
+    }
   }
-  // Account names provide a conservative fallback until provider subtypes are stored.
+  // Include a matched pair if either leg posts this month; its cross-month leg is disclosed.
+  const transfers = pairList.filter((p) => inMonth(p.out) || inMonth(p.into));
   const savingsAccounts = new Set(
     store
       .accountList()
@@ -174,12 +241,16 @@ export function flowState(store: Store, month: string, currency: string) {
       .map((a) => JSON.stringify([a.connection, a.id])),
   );
   const graph = buildFlow(
-    [...grouped.values()],
-    prune(billState(store, 12).saved),
+    [...incoming.values()],
+    [...spending.values()],
     transfers,
     labels,
     savingsAccounts,
   );
+  // Make every onboarded account selectable, even without monthly activity.
+  for (const [key, name] of labels)
+    if (!graph.nodes.some((n) => n.id === `before:${key}`))
+      graph.nodes.push({ id: `before:${key}`, name, column: 1 });
   const dimensions = store.db
     .prepare(
       "SELECT DISTINCT substr(date,1,7) AS month,currency FROM transactions WHERE env=? ORDER BY month DESC",
