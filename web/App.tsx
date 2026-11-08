@@ -1,3 +1,5 @@
+import BudgetTabs, { type BudgetTab } from "./BudgetTabs";
+import BillPlan from "./BillPlan";
 import {
   saveLinkAction,
   readLinkAction,
@@ -24,6 +26,7 @@ export default function App() {
   const [linkAction, setLinkAction] = useState<LinkAction | null>(null);
   const [linkNotice, setLinkNotice] = useState("");
   const [accountRevision, setAccountRevision] = useState(0);
+  const [budgetTab, setBudgetTab] = useState<BudgetTab>("commitments");
   const [accountFilter, setAccountFilter] = useState("");
   const [route, setRoute] = useState(location.hash);
   const page =
@@ -413,29 +416,10 @@ export default function App() {
           <p className="page-intro">
             Review your activity and keep your bills in order.
           </p>
-          <div className="quick-actions" aria-label="Budget shortcuts">
+          <BudgetTabs selected={budgetTab} onSelect={setBudgetTab} />
+          <p>
             <a href="#bills-overview">See monthly bills</a>
-            {[
-              ["Internal transfers", "Review transfers"],
-              ["Bills", "Review bills"],
-              ["Recent transactions", "See transactions"],
-            ].map(([label, text]) => (
-              <button
-                type="button"
-                className="secondary"
-                key={label}
-                onClick={() => {
-                  const target = document.querySelector<HTMLElement>(
-                    `[aria-label="${label}"]`,
-                  );
-                  target?.scrollIntoView({ block: "start" });
-                  target?.focus();
-                }}
-              >
-                {text}
-              </button>
-            ))}
-          </div>
+          </p>
           {!state && <p role="status">Loading…</p>}
           {state && !state.connections.length && (
             <p>
@@ -443,7 +427,10 @@ export default function App() {
             </p>
           )}
           {state && (
-            <section className="panel">
+            <section
+              className="panel"
+              hidden={budgetTab !== "bills" && budgetTab !== "transactions"}
+            >
               <label>
                 Filter bills and transactions by account
                 <select
@@ -463,26 +450,56 @@ export default function App() {
               </label>
             </section>
           )}
-          {state?.transfers && (
-            <Transfers
-              data={state.transfers}
-              accounts={state.accounts}
-              api={api}
-              onError={setError}
-            />
-          )}
           {state && (
-            <Bills
+            <BillPlan
               api={api}
-              accountFilter={selectedAccount}
-              revision={JSON.stringify([
-                state.connections,
-                state.accounts,
-                state.transfers,
-              ])}
+              revision={JSON.stringify([state.connections, state.accounts])}
+              activeTab={budgetTab}
             />
           )}
-          <section className="panel">
+          <div
+            id="budget-panel-transfers"
+            role="tabpanel"
+            aria-labelledby="budget-tab-transfers"
+            tabIndex={0}
+            hidden={budgetTab !== "transfers"}
+          >
+            {state?.transfers && (
+              <Transfers
+                data={state.transfers}
+                accounts={state.accounts}
+                api={api}
+                onError={setError}
+              />
+            )}
+          </div>
+          <div
+            id="budget-panel-bills"
+            role="tabpanel"
+            aria-labelledby="budget-tab-bills"
+            tabIndex={0}
+            hidden={budgetTab !== "bills"}
+          >
+            {state && (
+              <Bills
+                api={api}
+                accountFilter={selectedAccount}
+                revision={JSON.stringify([
+                  state.connections,
+                  state.accounts,
+                  state.transfers,
+                ])}
+              />
+            )}
+          </div>
+          <section
+            className="panel"
+            id="budget-panel-transactions"
+            role="tabpanel"
+            aria-labelledby="budget-tab-transactions"
+            tabIndex={0}
+            hidden={budgetTab !== "transactions"}
+          >
             <div className="panel-heading">
               <div>
                 <h2>Transactions</h2>

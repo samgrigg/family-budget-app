@@ -916,3 +916,32 @@ input[type="month"] {
 .plan-entry summary {
   overflow-wrap: anywhere;
 }
+
+[hidden] {
+  display: none !important;
+}
+.budget-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-block: 1rem;
+}
+.budget-tabs [role="tab"] {
+  min-height: 44px;
+  min-width: 44px;
+  flex: 1 1 9rem;
+  color: inherit;
+  background: transparent;
+  border: 1px solid #d4d4d8;
+  white-space: normal;
+}
+.budget-tabs [aria-selected="true"] {
+  font-weight: 650;
+  border-color: currentColor;
+  background: #e4e4e7;
+  box-shadow: inset 0 -3px currentColor;
+}
+.budget-tabs [role="tab"]:hover:not(:disabled) {
+  background: #e4e4e7;
+  color: #18181b;
+}
