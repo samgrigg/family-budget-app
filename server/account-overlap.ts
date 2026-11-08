@@ -77,6 +77,17 @@ export function reconcile(db: Database.Database, env: string, raw: any[]) {
           )
           .all(env, ts[0].canonicalAccountId, sig) as any[];
         const assignments = new Map<string, any[]>();
+        // Retired events cannot become matches merely because a new source has never used them.
+        const liveEvents = new Set(
+          ts.flatMap((t) => {
+            const alias = db
+              .prepare(
+                "SELECT event_id FROM transaction_event_aliases WHERE env=? AND source_id=? AND transaction_id=? AND signature=?",
+              )
+              .get(env, t.connection, t.id, sig) as any;
+            return alias ? [alias.event_id] : [];
+          }),
+        );
         for (const [source, list] of bySource) {
           const used = new Set<string>();
           const known = new Map(
@@ -98,10 +109,11 @@ export function reconcile(db: Database.Database, env: string, raw: any[]) {
               // Never recycle an event previously occupied by a different record from this source.
               const available = events.find(
                 (e) =>
+                  liveEvents.has(e.event_id) &&
                   !used.has(e.event_id) &&
                   !db
                     .prepare(
-                      "SELECT 1 FROM transaction_event_aliases WHERE env=? AND source_id=? AND event_id=?",
+                      "SELECT 1 FROM transaction_event_occupancy WHERE env=? AND source_id=? AND event_id=?",
                     )
                     .get(env, source, e.event_id),
               );
@@ -116,6 +128,10 @@ export function reconcile(db: Database.Database, env: string, raw: any[]) {
               }
             }
             used.add(eventId);
+            liveEvents.add(eventId);
+            db.prepare(
+              "INSERT OR IGNORE INTO transaction_event_occupancy VALUES(?,?,?,?)",
+            ).run(env, t.connection, eventId, t.id);
             db.prepare(
               "INSERT INTO transaction_event_aliases VALUES(?,?,?,?,?) ON CONFLICT(env,source_id,transaction_id) DO UPDATE SET signature=excluded.signature,event_id=excluded.event_id",
             ).run(env, t.connection, t.id, sig, eventId);

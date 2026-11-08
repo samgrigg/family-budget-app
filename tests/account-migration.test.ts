@@ -138,7 +138,7 @@ describe("account identity migration", () => {
         db.prepare("SELECT * FROM app_accounts ORDER BY env,included").all(),
       ).toEqual(accounts);
       expect(db.prepare("SELECT * FROM schema_migrations").all()).toHaveLength(
-        3,
+        4,
       );
     } finally {
       db.close();
@@ -194,7 +194,7 @@ describe("account identity migration", () => {
       expect(snapshot(db)).toEqual(before);
       await migrateDatabase(db);
       expect(db.prepare("SELECT * FROM schema_migrations").all()).toHaveLength(
-        3,
+        4,
       );
     } finally {
       db.close();
@@ -256,7 +256,7 @@ it("backs up a version-one database before read-boundary schema upgrade and guar
     );
     await migrateDatabase(db);
     db.exec(
-      "DROP TABLE transaction_metadata; DROP TABLE source_account_metadata; DROP TABLE decision_id_aliases; DROP TABLE account_links; DROP TABLE transaction_events; DROP TABLE transaction_event_aliases; DELETE FROM schema_migrations WHERE version>=2",
+      "DROP TABLE transaction_metadata; DROP TABLE source_account_metadata; DROP TABLE decision_id_aliases; DROP TABLE account_links; DROP TABLE transaction_events; DROP TABLE transaction_event_aliases; DROP TABLE transaction_event_occupancy; DELETE FROM schema_migrations WHERE version>=2",
     );
     const existing = (await readdir(join(dir, "migration-backups"))).length;
     expect(() => new Store(db, Buffer.alloc(32), "sandbox")).toThrow(
@@ -281,7 +281,7 @@ it("backs up a version-two database before reversible-link schema changes", asyn
     await migrateDatabase(db);
     const before = snapshot(db);
     db.exec(
-      "DROP TABLE account_links; DROP TABLE transaction_events; DROP TABLE transaction_event_aliases; DELETE FROM schema_migrations WHERE version=3",
+      "DROP TABLE account_links; DROP TABLE transaction_events; DROP TABLE transaction_event_aliases; DROP TABLE transaction_event_occupancy; DELETE FROM schema_migrations WHERE version>=3",
     );
     const count = (await readdir(join(dir, "migration-backups"))).length;
     expect(() => new Store(db, Buffer.alloc(32), "sandbox")).toThrow(
@@ -293,6 +293,73 @@ it("backs up a version-two database before reversible-link schema changes", asyn
     );
     expect(snapshot(db)).toEqual(before);
     expect(db.prepare("SELECT * FROM account_links").all()).toEqual([]);
+  } finally {
+    db.close();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+it("backs up v3 and conservatively seals unknown historical event occupancy by environment", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "budget-event-occupancy-"));
+  const db = fixture(join(dir, "v3.sqlite"));
+  try {
+    await migrateDatabase(db);
+    const mappings = db
+      .prepare("SELECT * FROM source_accounts WHERE source_id=?")
+      .all("macu-1") as any[];
+    for (const m of mappings) {
+      db.prepare("INSERT INTO transaction_events VALUES(?,?,?,?,?)").run(
+        m.env,
+        m.account_id,
+        "old",
+        0,
+        "old-event",
+      );
+      db.prepare("INSERT INTO transaction_events VALUES(?,?,?,?,?)").run(
+        m.env,
+        m.account_id,
+        "current",
+        0,
+        "current-event",
+      );
+      db.prepare("INSERT INTO transaction_event_aliases VALUES(?,?,?,?,?)").run(
+        m.env,
+        m.source_id,
+        "tx",
+        "current",
+        "current-event",
+      );
+    }
+    db.exec(
+      "DROP TABLE transaction_event_occupancy; DELETE FROM schema_migrations WHERE version=4",
+    );
+    const before = (await readdir(join(dir, "migration-backups"))).length;
+    expect(() => new Store(db, Buffer.alloc(32), "sandbox")).toThrow(
+      /Await migrateDatabase/,
+    );
+    await migrateDatabase(db);
+    expect((await readdir(join(dir, "migration-backups"))).length).toBe(
+      before + 1,
+    );
+    for (const env of ["sandbox", "production"]) {
+      expect(
+        db
+          .prepare(
+            "SELECT transaction_id FROM transaction_event_occupancy WHERE env=? AND source_id=? AND event_id=?",
+          )
+          .get(env, "macu-1", "current-event"),
+      ).toEqual({ transaction_id: "tx" });
+      expect(
+        db
+          .prepare(
+            "SELECT transaction_id FROM transaction_event_occupancy WHERE env=? AND source_id=? AND event_id=?",
+          )
+          .get(env, "macu-1", "old-event"),
+      ).toEqual({ transaction_id: null });
+    }
+    await migrateDatabase(db);
+    expect((await readdir(join(dir, "migration-backups"))).length).toBe(
+      before + 1,
+    );
   } finally {
     db.close();
     await rm(dir, { recursive: true, force: true });

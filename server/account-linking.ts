@@ -115,6 +115,16 @@ export class AccountLinking {
           kind: "transfer_decisions",
           target: d.key,
           options: [{ id: d.key, ...d }],
+          optionPairs: {
+            [d.key]: {
+              out: match.out.sourceTransactionId,
+              into: match.into.sourceTransactionId,
+              accountIds: [
+                match.out.canonicalAccountId,
+                match.into.canonicalAccountId,
+              ],
+            },
+          },
           pair: {
             out: match.out.sourceTransactionId,
             into: match.into.sourceTransactionId,
@@ -140,8 +150,10 @@ export class AccountLinking {
       ];
       const key = `transfer_decisions:${hash([identity(pair.out), identity(pair.into)])}`;
       const previous = merged.get(key);
-      if (previous) previous.options.push(...g.options);
-      else merged.set(key, { ...g, id: key });
+      if (previous) {
+        previous.options.push(...g.options);
+        previous.optionPairs = { ...previous.optionPairs, ...g.optionPairs };
+      } else merged.set(key, { ...g, id: key });
     }
     return [...merged.values()];
   }
@@ -636,6 +648,35 @@ export class AccountLinking {
       };
       for (const g of snap.decisions)
         for (const o of g.options) {
+          // Transfer keys fingerprint a pair, never a payee group. Each original
+          // option retains its own source/account evidence even when choices coalesce.
+          if (g.kind === "transfer_decisions") {
+            const recorded = g.optionPairs?.[o.key];
+            const oldAliasKeys = (snap.decisionAliases ?? [])
+              .filter(
+                (a: any) =>
+                  a.kind === "transfer_decisions" && a.legacy_key === o.key,
+              )
+              .map((a: any) => a.canonical_key);
+            const oldPair = recorded
+              ? undefined
+              : transferCandidates(this.store.repository.rawHistory()).find(
+                  (p) => p.key === o.key || oldAliasKeys.includes(p.key),
+                );
+            const owners =
+              recorded?.accountIds ??
+              (oldPair
+                ? [
+                    oldPair.out.canonicalAccountId,
+                    oldPair.into.canonicalAccountId,
+                  ]
+                : undefined);
+            // Older snapshots without surviving ownership evidence retain the original
+            // decision for unresolved review rather than silently discarding it.
+            if (!keep || !owners || owners.includes(op.right_id))
+              this.insert(g.kind, o);
+            continue;
+          }
           // Restoring the other account's original classifications is independent of keeping later survivor decisions.
           const owner = snap.mappings.find((m: any) =>
             this.store.repository

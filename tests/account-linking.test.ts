@@ -515,3 +515,165 @@ it("finds legacy transfer decisions directly from evidence before any transfer r
   ).toBe(true);
   s.db.close();
 });
+it("never reuses a corrected purchase event for a new transaction with the old signature", () => {
+  const { s, add, linking, link } = fixture();
+  const op = link();
+  const original = s.repository.history("all").find((t) => t.id === "p2")!;
+  s.repository.writeDecision("bills", {
+    key: groupKey(original),
+    name: "Electric",
+    status: "saved",
+    excluded: [original.canonicalTransactionId],
+  });
+  const update = (source: string) =>
+    s.commit(
+      source,
+      [
+        {
+          added: [],
+          modified: [
+            {
+              transaction_id: "p2",
+              account_id: "a",
+              date: "2026-10-01",
+              name: "Power",
+              amount: 15,
+              iso_currency_code: "USD",
+              pending: false,
+            },
+          ],
+          removed: [],
+        },
+      ],
+      "corrected",
+      [],
+    );
+  update("left");
+  update("right");
+  const corrected = s.repository.history("all").find((t) => t.id === "p2")!;
+  expect(corrected.canonicalTransactionId).not.toBe(
+    original.canonicalTransactionId,
+  );
+  for (const source of ["left", "right"]) add(source, "replacement");
+  const replacement = s.repository
+    .history("all")
+    .find((t) => t.id === "replacement")!;
+  expect(replacement.canonicalTransactionId).not.toBe(
+    original.canonicalTransactionId,
+  );
+  expect(replacement.canonicalTransactionId).not.toBe(
+    corrected.canonicalTransactionId,
+  );
+  expect(
+    billState(s, 12, new Date("2026-11-07")).saved[0].transactions.some(
+      (t: any) => t.id === "replacement",
+    ),
+  ).toBe(true);
+  linking.prefer(op.id, "left");
+  expect(
+    s.repository.history("all").find((t) => t.id === "replacement")!
+      .canonicalTransactionId,
+  ).toBe(replacement.canonicalTransactionId);
+  s.commit(
+    "left",
+    [
+      {
+        added: [],
+        modified: [],
+        removed: [{ transaction_id: "replacement" }, { transaction_id: "p2" }],
+      },
+    ],
+    "removed",
+    [],
+  );
+  const after = s.repository.history("all");
+  expect(
+    after.find((t) => t.id === "replacement")!.canonicalTransactionId,
+  ).toBe(replacement.canonicalTransactionId);
+  expect(after.find((t) => t.id === "p2")!.canonicalTransactionId).toBe(
+    corrected.canonicalTransactionId,
+  );
+  expect(after.find((t) => t.id === "replacement")!.connection).toBe("right");
+  expect(
+    billState(s, 12, new Date("2026-11-07")).saved[0].transactions.some(
+      (t: any) => t.id === "replacement",
+    ),
+  ).toBe(true);
+  s.db.close();
+});
+for (const snapshotVersion of ["current", "v3"])
+  for (const foldedStatus of ["rejected", "confirmed"])
+    it(`restores the folded account's original ${foldedStatus} transfer from ${snapshotVersion} snapshot while keeping survivor preference edits`, () => {
+      const { s, a, b, add, linking, link } = fixture();
+      s.accounts("left", [
+        { account_id: "savings", name: "Savings", type: "depository" },
+      ]);
+      for (const src of ["left", "right"])
+        add(src, "out", "2026-10-05", "Transfer to savings", "40");
+      s.db
+        .prepare("INSERT INTO transactions VALUES(?,?,?,?,?,?,?,?,?)")
+        .run(
+          s.env,
+          "left",
+          "in",
+          "savings",
+          "2026-10-05",
+          "Transfer from checking",
+          "-40",
+          "USD",
+          0,
+        );
+      const pairs = transferState(s).review;
+      const right = pairs.find((p) => p.out.connection === "right")!,
+        left = pairs.find((p) => p.out.connection === "left")!;
+      s.repository.writeDecision("transfer_decisions", {
+        key: right.key,
+        status: foldedStatus,
+      });
+      s.repository.writeDecision("transfer_decisions", {
+        key: left.key,
+        status: foldedStatus === "confirmed" ? "rejected" : "confirmed",
+      });
+      const review = linking.review(a.id, b.id),
+        group = review.decisions.find(
+          (g: any) => g.kind === "transfer_decisions",
+        );
+      const op = link({ decisions: { [group.id]: left.key } });
+      if (snapshotVersion === "v3") {
+        const row = s.db
+          .prepare("SELECT snapshot FROM account_links WHERE env=? AND id=?")
+          .get(s.env, op.id) as any;
+        const snapshot = JSON.parse(row.snapshot);
+        for (const g of snapshot.decisions) delete g.optionPairs;
+        s.db
+          .prepare("UPDATE account_links SET snapshot=? WHERE env=? AND id=?")
+          .run(JSON.stringify(snapshot), s.env, op.id);
+      }
+      s.db
+        .prepare("UPDATE app_accounts SET name=? WHERE env=? AND id=?")
+        .run("Later owner name", s.env, a.id);
+      linking.unlink(op.id, { confirm: true, resolution: "keep_survivor" });
+      expect(
+        s.db
+          .prepare(
+            "SELECT status FROM transfer_decisions WHERE env=? AND key=?",
+          )
+          .get(s.env, right.key),
+      ).toEqual({ status: foldedStatus });
+      expect(
+        s.db
+          .prepare(
+            "SELECT status FROM transfer_decisions WHERE env=? AND key=?",
+          )
+          .get(s.env, left.key),
+      ).toEqual({
+        status: foldedStatus === "confirmed" ? "rejected" : "confirmed",
+      });
+      expect(s.repository.listAccounts().find((x) => x.id === a.id)?.name).toBe(
+        "Later owner name",
+      );
+      expect(s.repository.listAccounts().find((x) => x.id === b.id)?.name).toBe(
+        "right",
+      );
+      s.db.close();
+    });
