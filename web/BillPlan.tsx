@@ -132,8 +132,7 @@ export default function BillPlan({
         status,
       });
       await reload();
-      if (status === "confirmed" || status === "excluded")
-        setAdvanceFrom(row.id);
+      setAdvanceFrom(row.id);
       setNotice(
         status === "confirmed"
           ? "Bill confirmed. Funding totals updated."
