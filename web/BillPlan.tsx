@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { nextBillToReview } from "./billReview";
 const money = (value: number, currency: string) =>
   new Intl.NumberFormat(undefined, { style: "currency", currency }).format(
     value,
@@ -16,7 +17,25 @@ export default function BillPlan({
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false);
-  const reload = async () => setData(await api("/bill-plan"));
+  const entries = useRef(new Map<string, HTMLDetailsElement>());
+  const [advanceFrom, setAdvanceFrom] = useState<string | null>(null);
+  useEffect(() => {
+    if (!advanceFrom || !data) return;
+    const current = entries.current.get(advanceFrom);
+    if (current) current.open = false;
+    const nextId = nextBillToReview(data.records, advanceFrom);
+    const next = nextId ? entries.current.get(nextId) : undefined;
+    if (next) next.open = true;
+    const target = next ?? current;
+    target?.querySelector("summary")?.focus({ preventScroll: true });
+    target?.scrollIntoView({ block: "start", inline: "nearest" });
+    setAdvanceFrom(null);
+  }, [advanceFrom, data]);
+  const reload = async () => {
+    const fresh = await api("/bill-plan");
+    setData(fresh);
+    return fresh;
+  };
   useEffect(() => {
     let cancelled = false;
     api("/bill-plan")
@@ -53,6 +72,7 @@ export default function BillPlan({
         status,
       });
       await reload();
+      if (status === "confirmed") setAdvanceFrom(row.id);
       setNotice(
         status === "confirmed"
           ? "Bill confirmed. Funding totals updated."
@@ -138,7 +158,14 @@ export default function BillPlan({
                 </p>
               )}
               {data.records.map((r: any) => (
-                <details className="bill plan-entry" key={r.id}>
+                <details
+                  className="bill plan-entry"
+                  key={r.id}
+                  ref={(element) => {
+                    if (element) entries.current.set(r.id, element);
+                    else entries.current.delete(r.id);
+                  }}
+                >
                   <summary>
                     {r.name} ·{" "}
                     {r.status === "confirmed"

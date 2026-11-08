@@ -9,3 +9,9 @@ A separate bill-plan table stores reviewed records by environment and source key
 Account funding totals include confirmed plans only and show monthly payments, less frequent monthly set-asides and combined totals separately per account/currency. This does not claim bank balances, payable dates or accounting reconciliation. Existing historical Bills Overview remains explicitly separate to avoid double counting plans and observations.
 
 Web adaptation: semantic details/forms, direct labels, existing system typography and 44px controls. Current Apple entering-data/buttons pages consulted; Markdown fetch unsupported. Keyboard, enlarged text and VoiceOver require verification; no conformance claim.
+
+## Confirm-and-continue interaction
+
+Owner requested that Confirm Bill close the entry and take them to the next confirmation. After a successful save and reload, collapse the current native details, open the next unreviewed bill (skip confirmed, excluded and transfer entries; wrap to earlier outstanding bills), focus its summary and scroll it into view after React commits the refreshed layout. When no bill remains, close the current entry and focus its summary. Failed saves leave the entry open. Save for review and exclusion keep their existing interaction.
+
+Current HIG focus-and-selection and disclosure-controls references were consulted; text fetch returned JavaScript shells. Uses native web details/summary focus rather than a custom accordion, with immediate scrolling and no added animation. Three queue-selection tests, typecheck and production build pass. Actual browser focus/scroll, enlarged text and VoiceOver checks remain outstanding.
