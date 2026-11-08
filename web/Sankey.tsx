@@ -21,14 +21,15 @@ export default function Sankey({ data, month, money }: any) {
           ? -1
           : b.value - a.value),
   );
+  const columns = data.summary ? [0, 1, 2] : [0, 1, 2, 3];
   const height = Math.max(
     640,
-    ...[0, 1, 2, 3].map(
+    ...columns.map(
       (col) => nodes.filter((n: any) => n.column === col).length * 78 + 120,
     ),
   );
   const scale = Math.min(
-    ...[0, 1, 2, 3].map((col) => {
+    ...columns.map((col) => {
       const ns = nodes.filter((n: any) => n.column === col);
       return ns.length
         ? (height - 150 - ns.length * 54) /
@@ -36,10 +37,10 @@ export default function Sankey({ data, month, money }: any) {
         : Infinity;
     }),
   );
-  for (const col of [0, 1, 2, 3]) {
+  for (const col of columns) {
     let y = 100;
     for (const n of nodes.filter((n: any) => n.column === col)) {
-      n.x = 30 + col * 360;
+      n.x = 30 + col * (data.summary ? 520 : 360);
       n.y = y;
       n.h = n.value * scale;
       n.out = 0;
@@ -86,8 +87,9 @@ export default function Sankey({ data, month, money }: any) {
       <div className="flow-story">
         <h2>Where the money goes</h2>
         <p>
-          Follow income from its source, through your accounts, to bills and
-          savings.
+          {data.summary
+            ? "A household view of money coming in and where it goes. Expand Account routing to follow transfers."
+            : "Follow income through your accounts to spending and savings."}
         </p>
         <dl className="flow-story-totals">
           {[
@@ -112,13 +114,26 @@ export default function Sankey({ data, month, money }: any) {
           separately; these figures are not a balanced household budget.{" "}
           {data.savingsBasis}
         </p>
+        {data.summary && (
+          <details>
+            <summary>About the spending groups</summary>
+            <p>
+              Suggested categories use words in transaction descriptions.
+              Unrecognized purchases go to Other spending; unrecognized
+              confirmed bills go to Other confirmed bills. Categories can be
+              wrong. Open Detailed flows for original destinations. Income is
+              pooled here; this does not assign a particular paycheck to a
+              particular expense.
+            </p>
+          </details>
+        )}
         {active && (
           <button
             type="button"
             className="secondary"
             onClick={() => setActive(null)}
           >
-            Clear highlighted account
+            Clear highlight
           </button>
         )}
       </div>
@@ -128,13 +143,22 @@ export default function Sankey({ data, month, money }: any) {
         role="group"
         aria-label={`Money flow for ${month}. See flow list below for all connections and values.`}
       >
-        {[
-          "1 · Income & other funding",
-          "2 · Where it lands",
-          "3 · How it moves",
-          "4 · Spent, saved, or unallocated",
-        ].map((s, i) => (
-          <text x={30 + i * 360} y={32} key={s} fontSize="14" fontWeight="600">
+        {(data.summary
+          ? ["1 · Money in", "2 · Household", "3 · Spending & saving"]
+          : [
+              "1 · Income & other funding",
+              "2 · Where it lands",
+              "3 · How it moves",
+              "4 · Spent, saved, or unallocated",
+            ]
+        ).map((s, i) => (
+          <text
+            x={30 + i * (data.summary ? 520 : 360)}
+            y={32}
+            key={s}
+            fontSize="14"
+            fontWeight="600"
+          >
             {s}
           </text>
         ))}

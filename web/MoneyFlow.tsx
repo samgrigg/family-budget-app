@@ -1,3 +1,4 @@
+import { summarizeFlow } from "./flowSummary";
 import Sankey from "./Sankey";
 import { filteredSankey, flowNetwork } from "./flowNetwork";
 import { useEffect, useRef, useState } from "react";
@@ -83,6 +84,7 @@ export default function MoneyFlow({ api }: any) {
   const network = data
     ? flowNetwork(data, hidden)
     : { accounts: [], nodes: [], links: [] };
+  const [detailLevel, setDetailLevel] = useState("summary");
   const sankey = data ? filteredSankey(data, hidden) : { nodes: [], links: [] };
   const detailGraph = view === "sankey" ? sankey : network;
   const nodes = network.nodes.map((n: any) => ({ ...n }));
@@ -225,6 +227,26 @@ export default function MoneyFlow({ api }: any) {
                     : "Full screen"}
               </button>
             </div>
+            {view === "sankey" && (
+              <div className="flow-toolbar">
+                <div className="actions" aria-label="Sankey detail level">
+                  {[
+                    ["summary", "Household summary"],
+                    ["accounts", "Account routing"],
+                  ].map(([value, label]) => (
+                    <button
+                      type="button"
+                      key={value}
+                      className={detailLevel === value ? "" : "secondary"}
+                      aria-pressed={detailLevel === value}
+                      onClick={() => setDetailLevel(value)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             {expanded && (
               <p role="status">
                 Browser fullscreen is unavailable. The diagram is expanded
@@ -305,7 +327,14 @@ export default function MoneyFlow({ api }: any) {
               aria-label={`${view === "sankey" ? "Sankey diagram" : "Directed network"}, horizontally scrollable. Full values in the list below.`}
             >
               {view === "sankey" ? (
-                <Sankey data={sankey} month={month} money={money} />
+                <Sankey
+                  key={detailLevel}
+                  data={
+                    detailLevel === "summary" ? summarizeFlow(sankey) : sankey
+                  }
+                  month={month}
+                  money={money}
+                />
               ) : (
                 <svg
                   viewBox={`0 0 1200 ${height}`}
@@ -415,50 +444,59 @@ export default function MoneyFlow({ api }: any) {
             </div>
           </div>
           <section className="panel">
-            <h2>Flow details</h2>
-            <p>Select a connection for its full account names and amount.</p>
-            {selected && (
-              <p role="status">
-                {selected.kind}:{" "}
-                {
-                  detailGraph.nodes.find((n: any) => n.id === selected.source)
-                    ?.name
-                }{" "}
-                →{" "}
-                {
-                  detailGraph.nodes.find((n: any) => n.id === selected.target)
-                    ?.name
-                }{" "}
-                · {money(selected.amount)}
-              </p>
-            )}
-            {view === "sankey" && (
-              <p>
-                Accounts appear in two stages in Sankey view. Other funding and
-                unallocated bands are inferred balancing amounts, not verified
-                transactions or account balances. Hiding accounts removes their
-                connected flows; the filtered diagram may not balance.
-              </p>
-            )}
-            <ul className="flow-list">
-              {detailGraph.links.map((e: any, i: number) => (
-                <li key={i}>
-                  <button className="secondary" onClick={() => setSelected(e)}>
-                    {e.kind}:{" "}
-                    {
-                      detailGraph.nodes.find((n: any) => n.id === e.source)
-                        ?.name
-                    }{" "}
-                    →{" "}
-                    {
-                      detailGraph.nodes.find((n: any) => n.id === e.target)
-                        ?.name
-                    }{" "}
-                    · {money(e.amount)}
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <details>
+              <summary>
+                Detailed flows · {detailGraph.links.length} connections
+              </summary>
+              <h2>Flow details</h2>
+              <p>Select a connection for its full account names and amount.</p>
+              {selected && (
+                <p role="status">
+                  {selected.kind}:{" "}
+                  {
+                    detailGraph.nodes.find((n: any) => n.id === selected.source)
+                      ?.name
+                  }{" "}
+                  →{" "}
+                  {
+                    detailGraph.nodes.find((n: any) => n.id === selected.target)
+                      ?.name
+                  }{" "}
+                  · {money(selected.amount)}
+                </p>
+              )}
+              {view === "sankey" && (
+                <p>
+                  Accounts appear in two stages in Sankey view. Other funding
+                  and unallocated bands are inferred balancing amounts, not
+                  verified transactions or account balances. Hiding accounts
+                  removes their connected flows; the filtered diagram may not
+                  balance.
+                </p>
+              )}
+              <ul className="flow-list">
+                {detailGraph.links.map((e: any, i: number) => (
+                  <li key={i}>
+                    <button
+                      className="secondary"
+                      onClick={() => setSelected(e)}
+                    >
+                      {e.kind}:{" "}
+                      {
+                        detailGraph.nodes.find((n: any) => n.id === e.source)
+                          ?.name
+                      }{" "}
+                      →{" "}
+                      {
+                        detailGraph.nodes.find((n: any) => n.id === e.target)
+                          ?.name
+                      }{" "}
+                      · {money(e.amount)}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </details>
           </section>
         </>
       )}
