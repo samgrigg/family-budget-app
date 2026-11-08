@@ -30,28 +30,48 @@ export default function BillsOverview({
     amount === null
       ? "Amount unavailable"
       : `${currency || "Unknown currency"} ${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  const summary = (b: any) => (
-    <>
-      <h3>{b.name}</h3>
-      <p>
-        {money(b.typical, b.currency)}
+  const billDetails = (b: any, timing?: string) => (
+    <details className="overview-bill">
+      <summary>
+        <span className="overview-bill-name">
+          {b.name}
+          {timing && <span className="overview-timing">{timing}</span>}
+        </span>
+        <strong>{money(b.typical, b.currency)}</strong>
+      </summary>
+      <div className="overview-bill-body">
+        <p>
+          {b.frequency} · {b.confidence}
+        </p>
         {b.min !== b.max && (
-          <>
-            {" "}
-            · Range {money(b.min, b.currency)}–{money(b.max, b.currency)}
-          </>
+          <p>
+            Historical range: {money(b.min, b.currency)}–
+            {money(b.max, b.currency)}
+          </p>
         )}
-      </p>
-      <p>From {b.transactions[0]?.fromAccount || b.accountName}</p>
-      <p>Description: {b.transactions.at(-1)?.toPayee || b.name}</p>
-    </>
+        <p>From {b.transactions[0]?.fromAccount || b.accountName}</p>
+        <p>Description: {b.transactions.at(-1)?.toPayee || b.name}</p>
+        <details>
+          <summary>
+            Payment history · {b.transactions.length} transactions
+          </summary>
+          <ul>
+            {b.transactions.map((t: any) => (
+              <li key={t.id}>
+                {t.date} · {money(Number(t.amount), t.currency)} · {t.name}
+              </li>
+            ))}
+          </ul>
+        </details>
+      </div>
+    </details>
   );
   return (
     <>
       <h1>Bills Overview</h1>
       <p>
-        Your confirmed bills across a typical month. Days estimate when payments
-        posted, not when bills are due. Hidden accounts are excluded.
+        Plan for your confirmed bills. Expand a bill for account details and
+        payment history.
       </p>
       {error && (
         <p className="error" role="alert">
@@ -72,24 +92,37 @@ export default function BillsOverview({
             ) : (
               overview.totals.map((t) => (
                 <p key={t.currency}>
-                  <strong>{money(t.amount, t.currency)}</strong>
+                  <strong className="monthly-total">
+                    {money(t.amount, t.currency)}
+                  </strong>
                 </p>
               ))
             )}
             <p>
-              Uses typical amounts. Weekly and biweekly bills are averaged at 52
-              and 26 payments per year; illustrated occurrences below can
-              differ. Less frequent and unscheduled bills are excluded from this
-              total.
+              Estimated monthly cost · excludes less frequent bills and hidden
+              accounts.
             </p>
+            <details>
+              <summary>How this estimate works</summary>
+              <p>
+                Uses typical historical payment amounts. Weekly and biweekly
+                bills are averaged at 52 and 26 payments per year. Illustrated
+                occurrences may differ from this average. Unscheduled bills are
+                excluded; variable amounts may change.
+              </p>
+            </details>
           </section>
           <section className="panel" aria-label="Typical month">
             <h2>Typical month</h2>
-            <p>
-              Weekly and biweekly positions are illustrations based on the
-              latest payment; their dates shift each calendar month. Day 31
-              represents the final day in shorter months.
-            </p>
+            <p>Estimated payment days, not due dates.</p>
+            <details>
+              <summary>About payment timing</summary>
+              <p>
+                Weekly and biweekly dates illustrate the latest recorded payment
+                pattern and shift each calendar month. Day 31 represents the
+                final day in shorter months.
+              </p>
+            </details>
             {!overview.events.length && (
               <p>
                 Confirm bills in <a href="#budget">Budget</a> to populate this
@@ -101,25 +134,12 @@ export default function BillsOverview({
                 <li key={`${e.bill.key}:${e.day}`}>
                   <div className="bill-day">
                     {e.monthEnd ? "Month end" : `Day ${e.day}`}
-                    {e.approximate && <span>Illustrative</span>}
                   </div>
                   <article>
-                    {summary(e.bill)}
-                    <p>{e.bill.frequency}</p>
-                    <details>
-                      <summary>
-                        Payment history · {e.bill.transactions.length}{" "}
-                        transactions
-                      </summary>
-                      <ul>
-                        {e.bill.transactions.map((t: any) => (
-                          <li key={t.id}>
-                            {t.date} · {money(Number(t.amount), t.currency)} ·{" "}
-                            {t.name}
-                          </li>
-                        ))}
-                      </ul>
-                    </details>
+                    {billDetails(
+                      e.bill,
+                      e.approximate ? "Illustrative date" : undefined,
+                    )}
                   </article>
                 </li>
               ))}
@@ -132,13 +152,17 @@ export default function BillsOverview({
             ([title, bills]: any) =>
               bills.length > 0 && (
                 <section className="panel" key={title}>
-                  <h2>{title}</h2>
-                  {bills.map((b: any) => (
-                    <article className="bill" key={b.key}>
-                      {summary(b)}
-                      <p>{b.frequency}</p>
-                    </article>
-                  ))}
+                  <details>
+                    <summary>
+                      {title} ({bills.length})
+                    </summary>
+                    <p>Not included in the monthly estimate.</p>
+                    {bills.map((b: any) => (
+                      <article className="bill" key={b.key}>
+                        {billDetails(b)}
+                      </article>
+                    ))}
+                  </details>
                 </section>
               ),
           )}

@@ -517,3 +517,36 @@ select {
 .month-bills h3 {
   margin-top: 0;
 }
+
+.monthly-total {
+  font-size: 2rem;
+  font-variant-numeric: tabular-nums;
+}
+.overview-bill > summary {
+  display: list-item;
+  padding: 0.5rem 0;
+  overflow-wrap: anywhere;
+}
+.overview-bill > summary > strong {
+  display: block;
+  margin-top: 0.25rem;
+  font-variant-numeric: tabular-nums;
+}
+.overview-bill-name {
+  font-weight: 600;
+}
+.overview-timing {
+  display: block;
+  font-weight: 400;
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
+.overview-bill-body {
+  padding: 0.5rem 0;
+}
+@media (min-width: 640px) {
+  .overview-bill > summary > strong {
+    float: right;
+    margin: 0 0 0.25rem 1rem;
+  }
+}
