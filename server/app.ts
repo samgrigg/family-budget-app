@@ -1,3 +1,4 @@
+import { flowState } from "./flow";
 import { incomeState } from "./income";
 import { transferState, transactionKey } from "./transfers";
 import { installBills, billState } from "./bills";
@@ -132,12 +133,10 @@ export function createApp(
           ),
       )
     )
-      return res
-        .status(409)
-        .json({
-          error:
-            "A transaction already belongs to another transfer. Undo that match first.",
-        });
+      return res.status(409).json({
+        error:
+          "A transaction already belongs to another transfer. Undo that match first.",
+      });
     if (status === "review")
       store.db
         .prepare("DELETE FROM transfer_decisions WHERE env=? AND key=?")
@@ -165,6 +164,20 @@ export function createApp(
       return res.status(404).json({ error: "Account not found." });
     res.json(state());
   });
+  app.get("/api/flow", (req, res) => {
+    const month = String(
+        req.query.month ?? new Date().toISOString().slice(0, 7),
+      ),
+      currency = String(req.query.currency ?? "USD");
+    if (
+      !/^\d{4}-(0[1-9]|1[0-2])$/.test(month) ||
+      !/^[A-Za-z0-9]{1,12}$/.test(currency)
+    )
+      return res
+        .status(400)
+        .json({ error: "Choose a valid month and currency." });
+    res.json(flowState(store, month, currency));
+  });
   app.get("/api/income", (_req, res) => res.json(incomeState(store)));
   app.post("/api/income", (req, res) => {
     const { key, name, status } = req.body ?? {};
@@ -182,11 +195,9 @@ export function createApp(
         (b) => b.key === key,
       )
     )
-      return res
-        .status(409)
-        .json({
-          error: "This income source changed. Refresh and review it again.",
-        });
+      return res.status(409).json({
+        error: "This income source changed. Refresh and review it again.",
+      });
     if (status === "review")
       store.db
         .prepare("DELETE FROM income_decisions WHERE env=? AND key=?")

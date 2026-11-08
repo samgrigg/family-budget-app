@@ -1,3 +1,4 @@
+import MoneyFlow from "./MoneyFlow";
 import BillsOverview from "./BillsOverview";
 import Transfers from "./Transfers";
 import Bills from "./Bills";
@@ -15,11 +16,13 @@ export default function App() {
   const [route, setRoute] = useState(location.hash);
   const page = route.startsWith("#institutions")
     ? "institutions"
-    : route === "#income-overview"
-      ? "income-overview"
-      : route === "#bills-overview"
-        ? "bills-overview"
-        : "budget";
+    : route === "#money-flow"
+      ? "money-flow"
+      : route === "#income-overview"
+        ? "income-overview"
+        : route === "#bills-overview"
+          ? "bills-overview"
+          : "budget";
   const institutionId = route.startsWith("#institutions/")
     ? route.slice("#institutions/".length)
     : "";
@@ -35,7 +38,7 @@ export default function App() {
     return () => window.removeEventListener("hashchange", navigate);
   }, []);
   useEffect(() => {
-    document.title = `${page === "institutions" ? "Institutions" : page === "income-overview" ? "Income Overview" : page === "bills-overview" ? "Bills Overview" : "Budget"} · Family Budget`;
+    document.title = `${page === "institutions" ? "Institutions" : page === "money-flow" ? "Money Flow" : page === "income-overview" ? "Income Overview" : page === "bills-overview" ? "Bills Overview" : "Budget"} · Family Budget`;
   }, [page]);
   const csrf = useRef("");
   const handler = useRef<any>(null);
@@ -194,7 +197,14 @@ export default function App() {
         >
           Income Overview
         </a>
+        <a
+          href="#money-flow"
+          aria-current={page === "money-flow" ? "page" : undefined}
+        >
+          Money Flow
+        </a>
       </nav>
+      {page === "money-flow" && <MoneyFlow api={api} />}
       {page === "income-overview" && (
         <BillsOverview
           key="income"

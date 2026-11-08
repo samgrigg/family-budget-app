@@ -685,4 +685,49 @@ table[tabindex]:focus-visible {
   }
 }
 
-.monthly-total { color: #18181b; }
+.monthly-total {
+  color: #18181b;
+}
+
+.flow-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+.flow-filters label {
+  display: grid;
+  gap: 0.5rem;
+}
+input[type="month"] {
+  font: inherit;
+  min-height: 44px;
+  padding: 0.5rem;
+  max-width: 100%;
+}
+.flow-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid #ddd;
+  background: white;
+}
+.flow-scroll:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 3px;
+}
+.flow-scroll svg {
+  display: block;
+  width: 100%;
+}
+.flow-list {
+  list-style: none;
+  padding: 0;
+}
+.flow-list li {
+  margin-bottom: 0.75rem;
+}
+.flow-list button {
+  text-align: left;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
