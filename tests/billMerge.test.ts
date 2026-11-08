@@ -294,3 +294,62 @@ it("preserves unavailable historical source links without allowing fabricated re
   ).toThrow();
   s.db.close();
 });
+
+it("merges an imported auto-transfer duplicate into its bill while retaining bill details", () => {
+  const s = setup();
+  const transfer = {
+    ...duplicate,
+    id: "Bills!Q2",
+    kind: "transfer",
+    accountName: "",
+    amount: "200.00",
+    day: 28,
+    notes: "Funding instruction",
+    payments: [{ date: "2026-11-28", amount: "999.00" }],
+  };
+  const preview = previewBillMerge(s, [transfer], {
+    sourceId: transfer.id,
+    targetId: target.id,
+  });
+  expect(preview.source.kind).toBe("transfer");
+  mergeBills(s, [transfer], {
+    sourceId: transfer.id,
+    targetId: target.id,
+    version: preview.version,
+    prefer: "target",
+    cycleChoices: {},
+  });
+  const state = planState(s, [transfer]);
+  expect(state.records).toHaveLength(1);
+  expect(state.records[0]).toMatchObject({
+    id: target.id,
+    kind: "bill",
+    accountName: "Checking",
+    amount: "100.00",
+    day: 1,
+    status: "confirmed",
+  });
+  expect(state.records[0].notes).toContain("Funding instruction");
+  expect(state.records[0].payments).toEqual(target.payments);
+  expect(planState(s, [transfer], [], "2026-11").totals[0].total).toBe(100);
+  s.db.close();
+});
+it("does not replace bill details with a funding-only transfer record", () => {
+  const s = setup();
+  const transfer = { ...duplicate, kind: "transfer" };
+  const preview = previewBillMerge(s, [transfer], {
+    sourceId: transfer.id,
+    targetId: target.id,
+  });
+  expect(() =>
+    mergeBills(s, [transfer], {
+      sourceId: transfer.id,
+      targetId: target.id,
+      version: preview.version,
+      prefer: "source",
+      cycleChoices: {},
+    }),
+  ).toThrow(/existing bill/i);
+  expect(planState(s, [transfer]).records).toHaveLength(2);
+  s.db.close();
+});

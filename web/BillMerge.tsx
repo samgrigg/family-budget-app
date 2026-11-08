@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 const fields = [
   ["name", "Name"],
+  ["kind", "Entry type"],
   ["accountName", "Payment account"],
   ["amountMode", "Amount certainty"],
   ["amount", "Fixed amount"],
@@ -12,15 +13,19 @@ const fields = [
   ["creditAccountId", "Card account"],
 ] as const;
 const label = (value: any) =>
-  value === "creditDebtPayoff"
-    ? "Credit card debt payoff"
-    : value === "creditPayment"
-      ? "Credit card purchases"
-      : value === "Quarterly"
-        ? "Every 3 months"
-        : value === undefined || value === null || value === ""
-          ? "Not specified"
-          : String(value);
+  value === "bill"
+    ? "Bill commitment"
+    : value === "transfer"
+      ? "Auto-transfer"
+      : value === "creditDebtPayoff"
+        ? "Credit card debt payoff"
+        : value === "creditPayment"
+          ? "Credit card purchases"
+          : value === "Quarterly"
+            ? "Every 3 months"
+            : value === undefined || value === null || value === ""
+              ? "Not specified"
+              : String(value);
 export default function BillMerge({
   row,
   api,
@@ -133,9 +138,13 @@ export default function BillMerge({
             Merge into {preview.target.name}
           </h3>
           <p>
-            One confirmed bill will remain. Notes, compatible payment cycles and
-            worksheet references from both entries will be retained. The
-            duplicate will disappear and will not return on worksheet re-import.
+            One confirmed bill will remain. Notes and worksheet references from
+            both entries will be retained.{" "}
+            {preview.source.kind === "transfer"
+              ? "The bill's payment history stays unchanged; transfer payment records are retained in merge history."
+              : "Compatible payment cycles will be combined."}{" "}
+            The duplicate will disappear and will not return on worksheet
+            re-import.
           </p>
           <details>
             <summary>Compare bill details</summary>
@@ -167,11 +176,25 @@ export default function BillMerge({
                 ))}
             </dl>
           </details>
+          {preview.source.kind === "transfer" && (
+            <p>
+              This entry is an auto-transfer instruction. The existing bill's
+              amount, payment account, schedule and payment history will be
+              kept. Transfer notes and worksheet references will be retained;
+              transfer payment records stay in merge history. Bank transactions
+              are unchanged.
+            </p>
+          )}
           <label>
             Bill details to keep
             <select value={prefer} onChange={(e) => setPrefer(e.target.value)}>
               <option value="target">Keep existing bill's details</option>
-              <option value="source">Use this entry's details</option>
+              <option
+                value="source"
+                disabled={preview.source.kind === "transfer"}
+              >
+                Use this entry's details
+              </option>
             </select>
           </label>
           {preview.conflictingMonths.map((month: string) => {

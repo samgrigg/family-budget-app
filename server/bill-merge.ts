@@ -87,13 +87,18 @@ export function previewBillMerge(store: Store, drafts: Plan[], input: any) {
         .map((k) => [k, input.sourceEdits[k]]),
     ),
   } as Plan;
-  if (source.kind !== "bill")
-    throw Error("Only bill commitments can be merged.");
+  if (!["bill", "transfer"].includes(source.kind))
+    throw Error(
+      "Choose a bill or auto-transfer entry to merge into the existing bill.",
+    );
   if (source.currency !== target.currency)
     throw Error("Bills with different currencies cannot be merged.");
   if (typeof source.notes !== "string" || source.notes.length > 2000)
     throw Error("Review the notes before merging.");
-  const a = paymentMap(source),
+  const a =
+      source.kind === "transfer"
+        ? new Map<string, BillPayment>()
+        : paymentMap(source),
     b = paymentMap(target);
   const conflictingMonths = [...a.keys()]
     .filter((m) => b.has(m) && !compatiblePayment(a.get(m)!, b.get(m)!))
@@ -127,6 +132,10 @@ export function mergeBills(store: Store, drafts: Plan[], input: any) {
       );
     if (!["source", "target"].includes(input.prefer))
       throw Error("Choose which bill details to keep.");
+    if (source.kind === "transfer" && input.prefer !== "target")
+      throw Error(
+        "Keep the existing bill's details when merging an auto-transfer.",
+      );
     const choices = input.cycleChoices;
     if (!choices || typeof choices !== "object" || Array.isArray(choices))
       throw Error("Review payment conflicts before merging.");
@@ -136,7 +145,10 @@ export function mergeBills(store: Store, drafts: Plan[], input: any) {
         !["source", "target"].includes(choices[month])
       )
         throw Error(`Choose the payment to keep for ${month}.`);
-    const a = paymentMap(source),
+    const a =
+        source.kind === "transfer"
+          ? new Map<string, BillPayment>()
+          : paymentMap(source),
       b = paymentMap(target),
       payments: BillPayment[] = [];
     for (const month of [...new Set([...a.keys(), ...b.keys()])].sort()) {
@@ -174,6 +186,7 @@ export function mergeBills(store: Store, drafts: Plan[], input: any) {
       ...(input.prefer === "source" ? source : target),
       id: target.id,
       status: "confirmed",
+      kind: target.kind,
       source: target.source ?? source.source,
       sources,
       notes,
