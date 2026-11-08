@@ -1,5 +1,6 @@
 import { billState } from "./bills";
 import { incomeState } from "./income";
+import { transactionKey } from "./transfers";
 import { transferState } from "./transfers";
 import type { Store } from "./store";
 export function buildFlow(
@@ -7,6 +8,7 @@ export function buildFlow(
   bills: any[],
   transfers: any[],
   labels: Map<string, string>,
+  savingsAccounts = new Set<string>(),
 ) {
   const links = new Map<string, any>();
   const accounts = new Set<string>();
@@ -69,16 +71,20 @@ export function buildFlow(
       t.outgoing + direct - t.income,
       "Untraced funding",
     );
-    add(
-      `after:${a}`,
-      "remaining",
-      t.incoming + direct - t.bills,
-      "Unallocated",
-    );
+    const residual = t.incoming + direct - t.bills;
+    const savings = savingsAccounts.has(a)
+      ? Math.min(
+          residual,
+          Math.max(0, t.income + t.incoming - t.outgoing - t.bills),
+        )
+      : 0;
+    add(`after:${a}`, "savings", savings, "Savings");
+    add(`after:${a}`, "remaining", residual - savings, "Unallocated");
   }
   const names = new Map<string, string>([
     ["funding", "Other funding / starting funds"],
     ["remaining", "Other spending / retained funds"],
+    ["savings", "Retained in savings accounts"],
   ]);
   for (const a of accounts)
     for (const stage of ["before", "after"])
@@ -123,11 +129,56 @@ export function flowState(store: Store, month: string, currency: string) {
   const transfers = transferState(store).confirmed.filter((p) =>
     inMonth(p.out),
   );
+  const confirmedIncome = prune(incomeState(store).saved);
+  const seen = new Set(
+    confirmedIncome.flatMap((b) => b.transactions.map(transactionKey)),
+  );
+  const passive = store.db
+    .prepare(
+      `SELECT t.* FROM transactions t JOIN accounts a ON a.env=t.env AND a.connection=t.connection AND a.id=t.account JOIN account_types at ON at.env=a.env AND at.connection=a.connection AND at.account=a.id WHERE t.env=? AND at.type='depository' AND pending=0 AND CAST(amount AS REAL)<0 AND substr(date,1,7)=? AND currency=? AND NOT EXISTS(SELECT 1 FROM account_preferences p WHERE p.env=a.env AND p.connection=a.connection AND p.account=a.id AND hidden=1)`,
+    )
+    .all(store.env, month, currency) as any[];
+  const otherTransactions = passive.filter(
+    (t) =>
+      !seen.has(transactionKey(t)) && /\b(interest|dividend)\b/i.test(t.name),
+  );
+  const grouped = new Map<string, any>();
+  for (const source of [
+    ...confirmedIncome,
+    { key: "other", name: "Other income", transactions: otherTransactions },
+  ]) {
+    const passiveSource = source.transactions.every((t: any) =>
+      /\b(interest|dividend)\b/i.test(t.name),
+    );
+    const name = passiveSource
+      ? "Other income"
+      : source.employer || source.name;
+    if (!source.transactions.length) continue;
+    const key = name.toLowerCase().trim();
+    const old = grouped.get(key);
+    grouped.set(key, {
+      key: encodeURIComponent(key),
+      name,
+      transactions: [...(old?.transactions ?? []), ...source.transactions],
+    });
+  }
+  // Account names provide a conservative fallback until provider subtypes are stored.
+  const savingsAccounts = new Set(
+    store
+      .accountList()
+      .filter(
+        (a) =>
+          /\b(savings|money market)\b/i.test(a.name) &&
+          !/\b(loan|credit|visa|checking)\b/i.test(a.name),
+      )
+      .map((a) => JSON.stringify([a.connection, a.id])),
+  );
   const graph = buildFlow(
-    prune(incomeState(store).saved),
+    [...grouped.values()],
     prune(billState(store, 12).saved),
     transfers,
     labels,
+    savingsAccounts,
   );
   const dimensions = store.db
     .prepare(
@@ -138,6 +189,8 @@ export function flowState(store: Store, month: string, currency: string) {
     ...graph,
     month,
     currency,
+    savingsBasis:
+      "Savings accounts are inferred from account names. Savings represents positive net modeled inflow retained there, not a verified balance change.",
     months: [...new Set(dimensions.map((d) => d.month))],
     currencies: [...new Set(dimensions.map((d) => d.currency).filter(Boolean))],
   };

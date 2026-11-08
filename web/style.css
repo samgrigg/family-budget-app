@@ -797,3 +797,24 @@ input[type="month"] {
 .network-node:focus-visible {
   outline: 3px solid #2563eb;
 }
+
+.flow-story {
+  padding: 1.25rem;
+  border-bottom: 1px solid #ddd;
+}
+.flow-story-totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem 2rem;
+  margin: 1.25rem 0;
+}
+.flow-story-totals dt {
+  color: #52525b;
+  font-size: 0.875rem;
+}
+.flow-story-totals dd {
+  margin: 0.25rem 0 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}

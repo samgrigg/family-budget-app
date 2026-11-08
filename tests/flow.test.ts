@@ -49,3 +49,37 @@ it("marks missing funding explicitly and supports transfers in both directions w
       g.nodes.find((n) => n.id === e.target)!.column,
     );
 });
+
+it("separates modeled savings from other residuals without counting transfers out as savings", () => {
+  const key = JSON.stringify(["c", "savings"]);
+  const g = buildFlow(
+    [{ key: "salary", name: "Employer", transactions: [t("checking", 1000)] }],
+    [],
+    [
+      { out: t("checking", 400), into: t("savings", -400) },
+      { out: t("savings", 100), into: t("checking", -100) },
+    ],
+    new Map(),
+    new Set([key]),
+  );
+  expect(
+    g.links
+      .filter((e) => e.kind === "Savings")
+      .reduce((s, e) => s + e.amount, 0),
+  ).toBe(300);
+  expect(
+    g.links
+      .filter((e) => e.kind === "Unallocated")
+      .reduce((s, e) => s + e.amount, 0),
+  ).toBe(800);
+  for (const n of g.nodes.filter((n) => n.column === 1 || n.column === 2))
+    expect(
+      g.links
+        .filter((e) => e.target === n.id)
+        .reduce((s, e) => s + e.amount, 0),
+    ).toBe(
+      g.links
+        .filter((e) => e.source === n.id)
+        .reduce((s, e) => s + e.amount, 0),
+    );
+});
