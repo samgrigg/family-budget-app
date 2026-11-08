@@ -1,17 +1,22 @@
+import IncomeReview from "./IncomeReview";
 import { useEffect, useState } from "react";
 import { buildOverview } from "./monthProjection";
 export default function BillsOverview({
   api,
   revision,
+  income = false,
 }: {
-  api: (path: string) => Promise<any>;
+  api: (path: string, body?: any) => Promise<any>;
+  income?: boolean;
   revision: string;
 }) {
   const [data, setData] = useState<any>(null),
     [error, setError] = useState("");
+  const endpoint = income ? "/income" : "/bills?months=12";
+  const reload = async () => setData(await api(endpoint));
   useEffect(() => {
     let cancelled = false;
-    api("/bills?months=12")
+    api(endpoint)
       .then((d) => {
         if (!cancelled) {
           setData(d);
@@ -24,7 +29,7 @@ export default function BillsOverview({
     return () => {
       cancelled = true;
     };
-  }, [revision]);
+  }, [revision, income]);
   const overview = data ? buildOverview(data.saved) : null;
   const money = (amount: number | null, currency: string) =>
     amount === null
@@ -49,11 +54,15 @@ export default function BillsOverview({
             {money(b.max, b.currency)}
           </p>
         )}
-        <p>From {b.transactions[0]?.fromAccount || b.accountName}</p>
+        <p>
+          {income ? "Deposited into" : "From"}{" "}
+          {b.transactions[0]?.fromAccount || b.accountName}
+        </p>
         <p>Description: {b.transactions.at(-1)?.toPayee || b.name}</p>
         <details>
           <summary>
-            Payment history · {b.transactions.length} transactions
+            {income ? "Deposit history" : "Payment history"} ·{" "}
+            {b.transactions.length} transactions
           </summary>
           <ul>
             {b.transactions.map((t: any) => (
@@ -69,11 +78,12 @@ export default function BillsOverview({
   return (
     <>
       <h1 tabIndex={-1} id="main-content">
-        Bills Overview
+        {income ? "Income Overview" : "Bills Overview"}
       </h1>
       <p>
-        Plan for your confirmed bills. Expand a bill for account details and
-        payment history.
+        {income
+          ? "Plan around confirmed recurring income. Expand a source for account details and deposit history."
+          : "Plan for your confirmed bills. Expand a bill for account details and payment history."}
       </p>
       {error && (
         <p className="error" role="alert">
@@ -84,13 +94,19 @@ export default function BillsOverview({
         </p>
       )}
       {!overview ? (
-        !error && <p role="status">Loading bills…</p>
+        !error && (
+          <p role="status">{income ? "Loading income…" : "Loading bills…"}</p>
+        )
       ) : (
         <>
           <section className="panel" aria-label="Monthly estimate">
-            <h2>Monthly estimate</h2>
+            <h2>{income ? "Estimated monthly income" : "Monthly estimate"}</h2>
             {!overview.totals.length ? (
-              <p>No scheduled monthly bills yet.</p>
+              <p>
+                {income
+                  ? "No confirmed recurring income yet."
+                  : "No scheduled monthly bills yet."}
+              </p>
             ) : (
               overview.totals.map((t) => (
                 <p key={t.currency}>
@@ -101,22 +117,28 @@ export default function BillsOverview({
               ))
             )}
             <p>
-              Estimated monthly cost · excludes less frequent bills and hidden
-              accounts.
+              {income
+                ? "Estimated recurring deposits · excludes unconfirmed sources and hidden accounts."
+                : "Estimated monthly cost · excludes less frequent bills and hidden accounts."}
             </p>
             <details>
               <summary>How this estimate works</summary>
               <p>
-                Uses typical historical payment amounts. Weekly and biweekly
-                bills are averaged at 52 and 26 payments per year. Illustrated
-                occurrences may differ from this average. Unscheduled bills are
-                excluded; variable amounts may change.
+                Uses typical historical amounts. Weekly and biweekly sources are
+                averaged at 52 and 26 occurrences per year. Illustrated
+                occurrences may differ from this average. Less frequent and
+                unscheduled items are excluded; variable amounts may change.
               </p>
             </details>
           </section>
+          {income && <IncomeReview data={data} api={api} reload={reload} />}
           <section className="panel" aria-label="Typical month">
             <h2>Typical month</h2>
-            <p>Estimated payment days, not due dates.</p>
+            <p>
+              {income
+                ? "Estimated deposit days, not guaranteed pay dates."
+                : "Estimated payment days, not due dates."}
+            </p>
             <details>
               <summary>About payment timing</summary>
               <p>
@@ -127,8 +149,14 @@ export default function BillsOverview({
             </details>
             {!overview.events.length && (
               <p>
-                Confirm bills in <a href="#budget">Budget</a> to populate this
-                month.
+                {income ? (
+                  "Confirm an income source below to populate this month."
+                ) : (
+                  <>
+                    Confirm bills in <a href="#budget">Budget</a> to populate
+                    this month.
+                  </>
+                )}
               </p>
             )}
             <ol className="month-bills">
@@ -148,8 +176,14 @@ export default function BillsOverview({
             </ol>
           </section>
           {[
-            ["Less frequent bills", overview.occasional],
-            ["Unscheduled bills", overview.unscheduled],
+            [
+              income ? "Less frequent income" : "Less frequent bills",
+              overview.occasional,
+            ],
+            [
+              income ? "Unscheduled income" : "Unscheduled bills",
+              overview.unscheduled,
+            ],
           ].map(
             ([title, bills]: any) =>
               bills.length > 0 && (

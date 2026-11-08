@@ -1,3 +1,4 @@
+import { incomeState } from "./income";
 import { transferState, transactionKey } from "./transfers";
 import { installBills, billState } from "./bills";
 import express from "express";
@@ -92,12 +93,10 @@ export function createApp(
       ],
       accounts: store.accountList(),
       transfers,
-      transactions: store
-        .transactions()
-        .map((t) => ({
-          ...t,
-          internal_transfer: confirmed.has(transactionKey(t)),
-        })),
+      transactions: store.transactions().map((t) => ({
+        ...t,
+        internal_transfer: confirmed.has(transactionKey(t)),
+      })),
     };
   };
   app.post("/api/transfers", (req, res) => {
@@ -116,9 +115,29 @@ export function createApp(
       return res
         .status(409)
         .json({ error: "This match changed. Reload and review it again." });
-    const pair = [...current.confirmed, ...current.review, ...current.rejected].find(p => p.key === key)!;
-    if (status === "confirmed" && current.confirmed.some(p => p.key !== key && [p.out,p.into].some(t => [pair.out,pair.into].some(other => transactionKey(t) === transactionKey(other)))))
-      return res.status(409).json({ error: "A transaction already belongs to another transfer. Undo that match first." });
+    const pair = [
+      ...current.confirmed,
+      ...current.review,
+      ...current.rejected,
+    ].find((p) => p.key === key)!;
+    if (
+      status === "confirmed" &&
+      current.confirmed.some(
+        (p) =>
+          p.key !== key &&
+          [p.out, p.into].some((t) =>
+            [pair.out, pair.into].some(
+              (other) => transactionKey(t) === transactionKey(other),
+            ),
+          ),
+      )
+    )
+      return res
+        .status(409)
+        .json({
+          error:
+            "A transaction already belongs to another transfer. Undo that match first.",
+        });
     if (status === "review")
       store.db
         .prepare("DELETE FROM transfer_decisions WHERE env=? AND key=?")
@@ -145,6 +164,40 @@ export function createApp(
     if (!store.setAccountHidden(connection, account, hidden))
       return res.status(404).json({ error: "Account not found." });
     res.json(state());
+  });
+  app.get("/api/income", (_req, res) => res.json(incomeState(store)));
+  app.post("/api/income", (req, res) => {
+    const { key, name, status } = req.body ?? {};
+    if (
+      typeof key !== "string" ||
+      typeof name !== "string" ||
+      !name.trim() ||
+      name.length > 120 ||
+      !["saved", "dismissed", "review"].includes(status)
+    )
+      return res.status(400).json({ error: "Invalid income details." });
+    const current = incomeState(store);
+    if (
+      ![...current.suggestions, ...current.saved, ...current.dismissed].some(
+        (b) => b.key === key,
+      )
+    )
+      return res
+        .status(409)
+        .json({
+          error: "This income source changed. Refresh and review it again.",
+        });
+    if (status === "review")
+      store.db
+        .prepare("DELETE FROM income_decisions WHERE env=? AND key=?")
+        .run(store.env, key);
+    else
+      store.db
+        .prepare(
+          "INSERT INTO income_decisions VALUES(?,?,?,?) ON CONFLICT(env,key) DO UPDATE SET name=excluded.name,status=excluded.status",
+        )
+        .run(store.env, key, name.trim(), status);
+    res.json({ ok: true });
   });
   app.get("/api/bills", (req, res) => {
     const months = Number(req.query.months ?? 6);

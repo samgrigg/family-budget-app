@@ -1,0 +1,73 @@
+import { candidates, groupKey, summarize, type Entry } from "./bills";
+import { confirmedTransactionKeys, transactionKey } from "./transfers";
+import type { Store } from "./store";
+export function incomeState(store: Store, now = new Date()) {
+  store.db.exec(
+    "CREATE TABLE IF NOT EXISTS income_decisions(env TEXT,key TEXT,name TEXT,status TEXT,PRIMARY KEY(env,key))",
+  );
+  const transfers = confirmedTransactionKeys(store);
+  const accounts = store.accountList(),
+    institutions = store.list();
+  const label = (t: Entry) => {
+    const a = accounts.find(
+      (a) => a.connection === t.connection && a.id === t.account,
+    );
+    const bank = institutions.find((c) => c.id === t.connection)?.display_name;
+    return `${bank ? `${bank} · ` : ""}${a?.name ?? "Account"}${a?.mask ? ` ••${a.mask}` : ""}`;
+  };
+  const rows = (
+    store.db
+      .prepare(
+        `SELECT t.* FROM transactions t JOIN account_types at ON at.env=t.env AND at.connection=t.connection AND at.account=t.account
+    WHERE t.env=? AND at.type='depository' AND t.pending=0 AND CAST(t.amount AS REAL)<0
+    AND NOT EXISTS (SELECT 1 FROM account_preferences p WHERE p.env=t.env AND p.connection=t.connection AND p.account=t.account AND p.hidden=1) ORDER BY t.date`,
+      )
+      .all(store.env) as Entry[]
+  )
+    .filter((t) => !transfers.has(transactionKey(t)))
+    .map((t) => ({ ...t, amount: String(-Number(t.amount)) }));
+  const cutoff = new Date(now);
+  cutoff.setUTCFullYear(cutoff.getUTCFullYear() - 1);
+  const eligible = rows.filter(
+    (t) =>
+      t.date >= cutoff.toISOString().slice(0, 10) &&
+      t.date <= now.toISOString().slice(0, 10) &&
+      !/\b(refund|reversal|transfer|xfer|loan|advance|payment thank|payment received)\b/i.test(
+        t.name,
+      ),
+  );
+  const decisions = store.db
+    .prepare("SELECT * FROM income_decisions WHERE env=?")
+    .all(store.env) as any[];
+  const enrich = (b: any) => ({
+    ...b,
+    transactions: b.transactions.map((t: Entry) => ({
+      ...t,
+      fromAccount: label(t),
+      toPayee: t.name,
+    })),
+    accountName: b.transactions[0] ? label(b.transactions[0]) : "Account",
+  });
+  const suggestions = candidates(eligible)
+    .filter((b) => !decisions.some((d) => d.key === b.key))
+    .map(enrich);
+  const saved = decisions
+    .filter((d) => d.status === "saved")
+    .flatMap((d) => {
+      const matching = rows.filter((t) => groupKey(t) === d.key);
+      return matching.length
+        ? [
+            enrich({
+              key: d.key,
+              name: d.name,
+              currency: matching[0].currency,
+              ...summarize(matching),
+            }),
+          ]
+        : [];
+    });
+  const dismissed = decisions.filter(
+    (d) => d.status === "dismissed" && rows.some((t) => groupKey(t) === d.key),
+  );
+  return { suggestions, saved, dismissed };
+}

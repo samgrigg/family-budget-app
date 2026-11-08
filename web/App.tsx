@@ -15,9 +15,11 @@ export default function App() {
   const [route, setRoute] = useState(location.hash);
   const page = route.startsWith("#institutions")
     ? "institutions"
-    : route === "#bills-overview"
-      ? "bills-overview"
-      : "budget";
+    : route === "#income-overview"
+      ? "income-overview"
+      : route === "#bills-overview"
+        ? "bills-overview"
+        : "budget";
   const institutionId = route.startsWith("#institutions/")
     ? route.slice("#institutions/".length)
     : "";
@@ -33,7 +35,7 @@ export default function App() {
     return () => window.removeEventListener("hashchange", navigate);
   }, []);
   useEffect(() => {
-    document.title = `${page === "institutions" ? "Institutions" : page === "bills-overview" ? "Bills Overview" : "Budget"} · Family Budget`;
+    document.title = `${page === "institutions" ? "Institutions" : page === "income-overview" ? "Income Overview" : page === "bills-overview" ? "Bills Overview" : "Budget"} · Family Budget`;
   }, [page]);
   const csrf = useRef("");
   const handler = useRef<any>(null);
@@ -186,9 +188,28 @@ export default function App() {
         >
           Bills Overview
         </a>
+        <a
+          href="#income-overview"
+          aria-current={page === "income-overview" ? "page" : undefined}
+        >
+          Income Overview
+        </a>
       </nav>
+      {page === "income-overview" && (
+        <BillsOverview
+          key="income"
+          income
+          api={api}
+          revision={JSON.stringify([
+            state?.connections,
+            state?.accounts,
+            state?.transfers,
+          ])}
+        />
+      )}
       {page === "bills-overview" && (
         <BillsOverview
+          key="bills"
           api={api}
           revision={JSON.stringify([state?.connections, state?.accounts])}
         />

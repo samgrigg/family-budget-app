@@ -155,3 +155,59 @@ it("validates institution renaming and returns the saved label", async () => {
   expect(JSON.stringify(result.body)).not.toContain("private-token");
   s.db.close();
 });
+
+it("supports income review decisions through the protected API", async () => {
+  const s = new Store(":memory:", Buffer.alloc(32), "sandbox");
+  s.connect("i1", "token", [
+    { account_id: "a", name: "Checking", type: "depository" },
+  ]);
+  const today = new Date();
+  for (let i = 0; i < 3; i++) {
+    const d = new Date(
+      Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - i, 1),
+    );
+    s.db
+      .prepare("INSERT INTO transactions VALUES(?,?,?,?,?,?,?,?,?)")
+      .run(
+        s.env,
+        "i1",
+        String(i),
+        "a",
+        d.toISOString().slice(0, 10),
+        "Employer payroll",
+        "-1000",
+        "USD",
+        0,
+      );
+  }
+  const app = createApp(
+    s,
+    { configured: true, call: async () => ({}) },
+    "http://localhost:3000",
+  );
+  const session = await request(app)
+    .get("/api/state")
+    .set("Host", "localhost:3000");
+  const initial = await request(app)
+    .get("/api/income")
+    .set("Host", "localhost:3000");
+  expect(initial.body.suggestions).toHaveLength(1);
+  const b = initial.body.suggestions[0];
+  const decide = (status: string) =>
+    request(app)
+      .post("/api/income")
+      .set("Host", "localhost:3000")
+      .set("Origin", "http://localhost:3000")
+      .set("Cookie", session.headers["set-cookie"])
+      .set("X-CSRF-Token", session.body.csrf)
+      .send({ key: b.key, name: "Salary", status });
+  expect((await decide("invalid")).status).toBe(400);
+  expect((await decide("saved")).status).toBe(200);
+  const confirmed = await request(app)
+    .get("/api/income")
+    .set("Host", "localhost:3000");
+  expect(confirmed.body.saved[0].name).toBe("Salary");
+  expect((await decide("review")).status).toBe(200);
+  expect((await decide("dismissed")).status).toBe(200);
+  s.db.close();
+});
