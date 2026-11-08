@@ -455,9 +455,65 @@ select {
   margin: 0;
 }
 
-.institution-index { list-style: none; padding: 0; margin: 1rem 0; }
-.institution-index li { border-bottom: 1px solid #ddd; }
-.institution-index a { display: grid; gap: .5rem; padding: 1rem .25rem; min-height: 44px; color: inherit; text-decoration: none; overflow-wrap: anywhere; }
-.institution-index a:hover { background: #f4f4f5; }
-.institution-index a:focus-visible, .back-link:focus-visible { outline: 3px solid #2563eb; outline-offset: 2px; }
-.back-link { display: inline-flex; align-items: center; min-height: 44px; }
+.institution-index {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0;
+}
+.institution-index li {
+  border-bottom: 1px solid #ddd;
+}
+.institution-index a {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1rem 0.25rem;
+  min-height: 44px;
+  color: inherit;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.institution-index a:hover {
+  background: #f4f4f5;
+}
+.institution-index a:focus-visible,
+.back-link:focus-visible {
+  outline: 3px solid #2563eb;
+  outline-offset: 2px;
+}
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+.page-nav {
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.month-bills {
+  list-style: none;
+  padding: 0;
+}
+.month-bills > li {
+  display: grid;
+  grid-template-columns: minmax(4rem, 6rem) minmax(0, 1fr);
+  gap: 1rem;
+  padding: 1rem 0;
+  border-top: 1px solid #ddd;
+}
+.bill-day {
+  font-weight: 600;
+}
+.bill-day span {
+  display: block;
+  font-weight: 400;
+  font-size: 0.875rem;
+  margin-top: 0.5rem;
+}
+.month-bills article {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.month-bills h3 {
+  margin-top: 0;
+}

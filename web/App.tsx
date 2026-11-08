@@ -1,3 +1,4 @@
+import BillsOverview from "./BillsOverview";
 import Transfers from "./Transfers";
 import Bills from "./Bills";
 import { useEffect, useRef, useState } from "react";
@@ -12,7 +13,11 @@ export default function App() {
     [busy, setBusy] = useState(false);
   const [accountFilter, setAccountFilter] = useState("");
   const [route, setRoute] = useState(location.hash);
-  const page = route.startsWith("#institutions") ? "institutions" : "budget";
+  const page = route.startsWith("#institutions")
+    ? "institutions"
+    : route === "#bills-overview"
+      ? "bills-overview"
+      : "budget";
   const institutionId = route.startsWith("#institutions/")
     ? route.slice("#institutions/".length)
     : "";
@@ -156,7 +161,19 @@ export default function App() {
         >
           Institutions
         </a>
+        <a
+          href="#bills-overview"
+          aria-current={page === "bills-overview" ? "page" : undefined}
+        >
+          Bills Overview
+        </a>
       </nav>
+      {page === "bills-overview" && (
+        <BillsOverview
+          api={api}
+          revision={JSON.stringify([state?.connections, state?.accounts])}
+        />
+      )}
       {page === "budget" && error && (
         <p role="alert" className="error">
           {error}
