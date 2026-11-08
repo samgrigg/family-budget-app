@@ -1,3 +1,4 @@
+import { replacementSourceIdentities } from "./source-identity";
 import { AccountLinking } from "./account-linking";
 import type express from "express";
 import type { Store } from "./store";
@@ -80,7 +81,11 @@ export function installAccountApi(
           recoveryOnly: true,
         });
     }
+    const identities = replacementSourceIdentities(store);
     for (const source of sources) {
+      const identity = identities.find((i) => i.id === source.id);
+      source.replacementDescription = identity?.description;
+      source.replacementNeedsNickname = identity?.needsNickname ?? false;
       source.replacementPending = !!store.db
         .prepare(
           "SELECT 1 FROM source_replacements WHERE env=? AND new_source_id=? AND state!='complete'",
@@ -92,6 +97,9 @@ export function installAccountApi(
           id: a.canonicalAccountId,
           name: a.name,
           shared: a.shared,
+          type: a.type,
+          subtype: a.subtype,
+          mask: a.mask,
         }));
     }
     res.json({

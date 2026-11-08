@@ -480,7 +480,10 @@ export class AccountLinking {
               p.out.canonicalTransactionId === this.eventId(g.pair.out) &&
               p.into.canonicalTransactionId === this.eventId(g.pair.into),
           );
-          if (!p) continue;
+          if (!p)
+            fail(
+              "The selected transfer cannot be preserved because its reconciled pair is missing or ambiguous. Review the source history and retry import before confirming this match.",
+            );
           row.key = p.key;
         }
         if (g.kind === "bills")

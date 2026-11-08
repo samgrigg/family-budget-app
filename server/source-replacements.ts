@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type express from "express";
 import type { Store } from "./store";
 import type { Provider } from "./plaid";
+import { replacementSourceIdentities } from "./source-identity";
 import { AccountLinking } from "./account-linking";
 export type ReplacementState =
   | "prepared"
@@ -95,6 +96,10 @@ export class SourceReplacements {
       last_error: error?.message ?? null,
       resumeState: error?.stage ?? o.state,
       oldStatus: this.store.connection(o.old_source_id).status,
+      oldDescription:
+        replacementSourceIdentities(this.store).find(
+          (s) => s.id === o.old_source_id,
+        )?.description ?? "Data source",
       newStatus: o.new_source_id
         ? this.store.connection(o.new_source_id).status
         : null,
@@ -131,6 +136,15 @@ export class SourceReplacements {
         );
     }
   }
+  private requireDistinctIdentity(source: string) {
+    if (
+      replacementSourceIdentities(this.store).find((s) => s.id === source)
+        ?.needsNickname
+    )
+      reject(
+        "These data sources have identical names and account details. Save a distinct Source nickname in Data access before preparing or revoking replacement access.",
+      );
+  }
   async prepare(source: string, confirm: unknown) {
     let id = "";
     await this.exclusive(source, async () => {
@@ -148,6 +162,7 @@ export class SourceReplacements {
         return;
       }
       this.preflight(source);
+      this.requireDistinctIdentity(source);
       id = randomUUID();
       this.db
         .prepare(
@@ -243,6 +258,7 @@ export class SourceReplacements {
         this.stage(o, ["prepared", "old_access_revoked"]);
         this.preflight(o.old_source_id, o.id);
         if (this.store.connection(o.old_source_id).status !== "historical") {
+          this.requireDistinctIdentity(o.old_source_id);
           try {
             await this.provider.call("/item/remove", {
               access_token: this.store.token(o.old_source_id),

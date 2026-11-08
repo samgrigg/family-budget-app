@@ -7,6 +7,8 @@ interface Source {
   institution_id: string;
   status: string;
   recoveryOnly?: boolean;
+  replacementDescription?: string;
+  replacementNeedsNickname?: boolean;
 }
 interface Account {
   provider_account_id: string;
@@ -21,6 +23,7 @@ interface Operation {
   state: string;
   last_error: string | null;
   oldStatus: string;
+  oldDescription: string;
   newStatus: string | null;
   accounts: Account[];
   existingAccounts: Account[];
@@ -33,6 +36,9 @@ interface Props {
   onRefresh: () => Promise<unknown>;
   openLink: (sourceId: string, operationId: string) => Promise<unknown>;
   disabled: boolean;
+}
+export function replacementRevocationPrompt(description: string) {
+  return `Revoke provider access for ${description}? Saved history stays here. You must authorize a new connection next, and access may remain unavailable if that fails.`;
 }
 const labels: Record<string, string> = {
   prepared: "Ready to revoke old access",
@@ -161,23 +167,24 @@ export default function HistoryReplacement({
               }
             >
               Prepare replacement for{" "}
-              {s.label ||
+              {s.replacementDescription ||
+                s.label ||
                 institutions.find((i) => i.id === s.institution_id)?.name ||
                 "data source"}
             </button>
+            {s.replacementNeedsNickname && (
+              <span>
+                {" "}
+                Save a distinct Source nickname below before preparing
+                replacement.
+              </span>
+            )}
           </p>
         ))}
       {operations.map((o) => (
         <article className="connection" key={o.id}>
           <h3>
-            {sources.find((s) => s.id === o.old_source_id)?.label ||
-              institutions.find(
-                (i) =>
-                  i.id ===
-                  sources.find((s) => s.id === o.old_source_id)?.institution_id,
-              )?.name ||
-              "Data source"}
-            : {labels[o.state] || o.state}
+            {o.oldDescription}: {labels[o.state] || o.state}
           </h3>
           <p role="status">
             Old access:{" "}
@@ -201,11 +208,7 @@ export default function HistoryReplacement({
               className="danger secondary"
               disabled={blocked}
               onClick={() => {
-                if (
-                  confirm(
-                    "Revoke this source’s provider access now? Saved history stays here. You must authorize a new connection next, and access may remain unavailable if that fails.",
-                  )
-                )
+                if (confirm(replacementRevocationPrompt(o.oldDescription)))
                   void run(() => action(o, "revoke", { confirm: true }));
               }}
             >

@@ -9,7 +9,12 @@ const origin = "http://localhost:3000";
 async function fixture() {
   const store = new Store(":memory:", Buffer.alloc(32), "sandbox");
   store.connect("old", "fixture-old", [
-    { account_id: "a", name: "Owner checking", type: "depository" },
+    {
+      account_id: "a",
+      name: "Owner checking",
+      type: "depository",
+      mask: "1234",
+    },
   ]);
   const calls: string[] = [],
     bodies: any[] = [];
@@ -612,5 +617,112 @@ it("retains emergency revocation recovery when exchange succeeds but local persi
   expect(blocked.body.error).toContain("Disconnect");
   expect((await f.post("/data-sources/new/disconnect")).status).toBe(200);
   expect((await f.post(base + "/link-token")).status).toBe(200);
+  f.store.db.close();
+});
+it.each(["confirmed", "rejected"])(
+  "rolls back replacement match when ambiguous overlap would discard the chosen %s transfer",
+  async (status) => {
+    const f = await fixture();
+    f.store.accounts("old", [
+      { account_id: "s", name: "Savings", type: "depository" },
+    ]);
+    const out = {
+      transaction_id: "out",
+      account_id: "a",
+      date: "2026-10-10",
+      name: "Transfer",
+      amount: 100,
+      iso_currency_code: "USD",
+    };
+    const incoming = {
+      ...out,
+      transaction_id: "in",
+      account_id: "s",
+      amount: -100,
+    };
+    f.store.commit(
+      "old",
+      [{ added: [...rows("a"), out, incoming], modified: [], removed: [] }],
+      "oldcursor",
+      [],
+    );
+    const { transferState } = await import("../server/transfers");
+    const transfer = transferState(f.store).confirmed[0];
+    f.store.repository.writeDecision("transfer_decisions", {
+      key: transfer.key,
+      status,
+    });
+    const before = f.store.db.prepare("SELECT * FROM transfer_decisions").all(),
+      mappings = f.store.repository.aliases();
+    f.rows([
+      ...rows("b"),
+      { ...out, transaction_id: "newout", account_id: "b" },
+      { ...out, transaction_id: "duplicate", account_id: "b" },
+    ]);
+    const { base } = await imported(f);
+    const result = await match(f, base);
+    expect(result.review.linkable).toBe(true);
+    expect(
+      result.review.decisions.some((g: any) => g.kind === "transfer_decisions"),
+    ).toBe(true);
+    expect(result.response.status).toBe(409);
+    expect(result.response.body.error).toMatch(/transfer.*preserv/i);
+    expect(
+      f.store.db.prepare("SELECT * FROM transfer_decisions").all(),
+    ).toEqual(before);
+    expect(new AccountLinking(f.store).operations()).toEqual([]);
+    expect(
+      f.store.repository.aliases().filter((a) => a.source_id === "old"),
+    ).toEqual(mappings);
+    expect(
+      transferState(f.store).confirmed.filter((p) => !p.automatic),
+    ).toHaveLength(status === "confirmed" ? 1 : 0);
+    await f.post(base + "/cancel");
+    expect(
+      f.store.db.prepare("SELECT * FROM transfer_decisions").all(),
+    ).toEqual(before);
+    expect(
+      transferState(f.store).confirmed.filter((p) => !p.automatic),
+    ).toHaveLength(status === "confirmed" ? 1 : 0);
+    f.store.db.close();
+  },
+);
+it("requires distinct nicknames when source/account context is identical before revocation", async () => {
+  const f = await fixture();
+  f.store.connect("second", "fixture-second", [
+    {
+      account_id: "other",
+      name: "Owner checking",
+      type: "depository",
+      mask: "1234",
+    },
+  ]);
+  const prepared = await f.post("/data-sources/old/replacements", {
+    confirm: true,
+  });
+  expect(prepared.status).toBe(409);
+  expect(prepared.body.error).toMatch(/nickname/i);
+  expect(f.calls).toEqual([]);
+  await f.post("/data-sources/old/name", { name: "Household membership" });
+  const id = await f.prepare(),
+    base = `/source-replacements/${id}`;
+  const index = (await f.get("/accounts")).body;
+  expect(
+    index.sources.find((s: any) => s.id === "old").replacementDescription,
+  ).toMatch(/Household membership.*Owner checking.*depository/);
+  expect(
+    index.sources.find((s: any) => s.id === "old").accounts[0],
+  ).toMatchObject({ type: "depository", mask: "1234" });
+  expect(
+    index.sources.find((s: any) => s.id === "old").replacementDescription,
+  ).toContain("••1234");
+  expect(
+    (await f.get("/source-replacements")).body.operations[0].oldDescription,
+  ).toContain("Household membership");
+  await f.post("/data-sources/second/name", { name: "Household membership" });
+  expect((await f.post(base + "/revoke", { confirm: true })).status).toBe(409);
+  expect(f.calls).toEqual([]);
+  await f.post("/data-sources/second/name", { name: "Other membership" });
+  expect((await f.post(base + "/revoke", { confirm: true })).status).toBe(200);
   f.store.db.close();
 });
