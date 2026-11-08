@@ -12,7 +12,8 @@ export function buildFlow(
 ) {
   const links = new Map<string, any>();
   const accounts = new Set<string>();
-  const id = (t: any) => JSON.stringify([t.connection, t.account]);
+  const id = (t: any) =>
+    t.canonicalAccountId ?? JSON.stringify([t.connection, t.account]);
   const add = (
     source: string,
     target: string,
@@ -115,23 +116,14 @@ export function flowState(store: Store, month: string, currency: string) {
     store
       .accountList()
       .map((a) => [
-        JSON.stringify([a.connection, a.id]),
+        a.canonicalAccountId ?? JSON.stringify([a.connection, a.id]),
         `${institutions.find((c) => c.id === a.connection)?.display_name ?? "Institution"} · ${a.name}${a.mask ? ` ••${a.mask}` : ""}${a.hidden ? " (hidden)" : ""}`,
       ]),
   );
   const inMonth = (t: any) =>
     t.date.startsWith(month) && t.currency === currency;
-  const rows = store.db
-    .prepare(
-      "SELECT * FROM transactions WHERE env=? AND pending=0 ORDER BY date,id",
-    )
-    .all(store.env) as any[];
-  const types = store.db
-    .prepare("SELECT * FROM account_types WHERE env=?")
-    .all(store.env) as any[];
-  const type = (t: any) =>
-    types.find((a) => a.connection === t.connection && a.account === t.account)
-      ?.type;
+  const rows = store.repository.history("all").filter((t) => !t.pending);
+  const type = (t: any) => t.account_type;
   const pairList = transferState(store).confirmed.map((p) => ({
     ...p,
     kind: "Internal transfer",
@@ -153,9 +145,7 @@ export function flowState(store: Store, month: string, currency: string) {
           (into) =>
             !used.has(transactionKey(into)) &&
             ["loan", "credit"].includes(type(into)) &&
-            !(
-              out.connection === into.connection && out.account === into.account
-            ) &&
+            !(out.canonicalAccountId === into.canonicalAccountId) &&
             into.currency === out.currency &&
             Number(into.amount) === -Number(out.amount) &&
             Math.abs(Date.parse(into.date) - Date.parse(out.date)) <=
@@ -242,7 +232,7 @@ export function flowState(store: Store, month: string, currency: string) {
           /\b(savings|money market)\b/i.test(a.name) &&
           !/\b(loan|credit|visa|checking)\b/i.test(a.name),
       )
-      .map((a) => JSON.stringify([a.connection, a.id])),
+      .map((a) => a.canonicalAccountId ?? JSON.stringify([a.connection, a.id])),
   );
   const graph = buildFlow(
     [...incoming.values()],
@@ -255,11 +245,10 @@ export function flowState(store: Store, month: string, currency: string) {
   for (const [key, name] of labels)
     if (!graph.nodes.some((n) => n.id === `before:${key}`))
       graph.nodes.push({ id: `before:${key}`, name, column: 1 });
-  const dimensions = store.db
-    .prepare(
-      "SELECT DISTINCT substr(date,1,7) AS month,currency FROM transactions WHERE env=? ORDER BY month DESC",
-    )
-    .all(store.env) as any[];
+  const dimensions = store.repository
+    .history("all")
+    .map((t) => ({ month: t.date.slice(0, 7), currency: t.currency }))
+    .sort((a, b) => b.month.localeCompare(a.month));
   return {
     ...graph,
     month,

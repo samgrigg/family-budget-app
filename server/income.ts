@@ -1,4 +1,10 @@
-import { candidates, groupKey, summarize, type Entry } from "./bills";
+import {
+  classificationDecisions,
+  candidates,
+  groupKey,
+  summarize,
+  type Entry,
+} from "./bills";
 import { confirmedTransactionKeys, transactionKey } from "./transfers";
 import type { Store } from "./store";
 // Owner-confirmed employer aliases; applied only to deposit inflows in flowState.
@@ -61,15 +67,12 @@ export function incomeState(store: Store, now = new Date()) {
     const bank = institutions.find((c) => c.id === t.connection)?.display_name;
     return `${bank ? `${bank} · ` : ""}${a?.name ?? "Account"}${a?.mask ? ` ••${a.mask}` : ""}`;
   };
-  const rows = (
-    store.db
-      .prepare(
-        `SELECT t.* FROM transactions t JOIN account_types at ON at.env=t.env AND at.connection=t.connection AND at.account=t.account
-    WHERE t.env=? AND at.type='depository' AND t.pending=0 AND CAST(t.amount AS REAL)<0
-    AND NOT EXISTS (SELECT 1 FROM account_preferences p WHERE p.env=t.env AND p.connection=t.connection AND p.account=t.account AND p.hidden=1) ORDER BY t.date`,
-      )
-      .all(store.env) as Entry[]
-  )
+  const rows = store.repository
+    .history("included")
+    .filter(
+      (t) =>
+        t.account_type === "depository" && !t.pending && Number(t.amount) < 0,
+    )
     .filter((t) => !transfers.has(transactionKey(t)))
     .map((t) => ({ ...t, amount: String(-Number(t.amount)) }));
   const cutoff = new Date(now);
@@ -82,9 +85,12 @@ export function incomeState(store: Store, now = new Date()) {
         t.name,
       ),
   );
-  const decisions = store.db
-    .prepare("SELECT * FROM income_decisions WHERE env=?")
-    .all(store.env) as any[];
+  const classification = classificationDecisions(
+    store,
+    "income_decisions",
+    store.repository.history("all"),
+  );
+  const decisions = classification.resolved;
   const enrich = (b: any) => ({
     ...b,
     employer: employerForHistory(b.transactions),
@@ -116,5 +122,10 @@ export function incomeState(store: Store, now = new Date()) {
   const dismissed = decisions.filter(
     (d) => d.status === "dismissed" && rows.some((t) => groupKey(t) === d.key),
   );
-  return { suggestions, saved, dismissed };
+  return {
+    suggestions,
+    saved,
+    dismissed,
+    unresolved: classification.unresolved,
+  };
 }

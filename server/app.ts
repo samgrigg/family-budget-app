@@ -137,16 +137,7 @@ export function createApp(
         error:
           "A transaction already belongs to another transfer. Undo that match first.",
       });
-    if (status === "review")
-      store.db
-        .prepare("DELETE FROM transfer_decisions WHERE env=? AND key=?")
-        .run(store.env, key);
-    else
-      store.db
-        .prepare(
-          "INSERT INTO transfer_decisions VALUES(?,?,?) ON CONFLICT(env,key) DO UPDATE SET status=excluded.status",
-        )
-        .run(store.env, key, status);
+    store.repository.writeDecision("transfer_decisions", { key, status });
     res.json(state());
   });
   app.get("/api/state", (_req, res) =>
@@ -198,16 +189,11 @@ export function createApp(
       return res.status(409).json({
         error: "This income source changed. Refresh and review it again.",
       });
-    if (status === "review")
-      store.db
-        .prepare("DELETE FROM income_decisions WHERE env=? AND key=?")
-        .run(store.env, key);
-    else
-      store.db
-        .prepare(
-          "INSERT INTO income_decisions VALUES(?,?,?,?) ON CONFLICT(env,key) DO UPDATE SET name=excluded.name,status=excluded.status",
-        )
-        .run(store.env, key, name.trim(), status);
+    store.repository.writeDecision("income_decisions", {
+      key,
+      name: name.trim(),
+      status,
+    });
     res.json({ ok: true });
   });
   app.get("/api/bills", (req, res) => {
@@ -241,16 +227,12 @@ export function createApp(
       return res.status(400).json({
         error: "This suggestion is no longer available. Refresh and try again.",
       });
-    if (status === "review")
-      store.db
-        .prepare("DELETE FROM bills WHERE env=? AND key=?")
-        .run(store.env, key);
-    else
-      store.db
-        .prepare(
-          "INSERT INTO bills(env,key,name,status,excluded) VALUES(?,?,?,?,?) ON CONFLICT(env,key) DO UPDATE SET name=excluded.name,status=excluded.status,excluded=excluded.excluded",
-        )
-        .run(store.env, key, name.trim(), status, JSON.stringify(excluded));
+    store.repository.writeDecision("bills", {
+      key,
+      name: name.trim(),
+      status,
+      excluded,
+    });
     res.json({ ok: true });
   });
   app.post("/api/link-token", async (_req, res, next) => {

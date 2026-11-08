@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Store } from "./store";
-export const transactionKey = (t: any) => JSON.stringify([t.connection, t.id]);
+export const transactionKey = (t: any) =>
+  t.canonicalTransactionId ?? JSON.stringify([t.connection, t.id]);
 const signal = (name: string) =>
   /\b(transfer|xfer|payment|pmt|autopay)\b/i.test(name);
 export function transferCandidates(rows: any[]) {
@@ -20,14 +21,38 @@ export function transferCandidates(rows: any[]) {
   const pairs: any[] = [];
   for (const out of valid.filter((t) => Number(t.amount) > 0))
     for (const into of incoming.get(bucket(out)) ?? []) {
-      if (out.connection === into.connection && out.account === into.account)
+      if (
+        out.canonicalAccountId && into.canonicalAccountId
+          ? out.canonicalAccountId === into.canonicalAccountId
+          : out.connection === into.connection && out.account === into.account
+      )
         continue;
       const days =
         Math.abs(Date.parse(out.date) - Date.parse(into.date)) / 86400000;
       if (!Number.isFinite(days) || days > 5) continue;
       // Include the evidence in the key so changed provider data invalidates old decisions.
       const key = createHash("sha256")
-        .update(JSON.stringify([out, into]))
+        .update(
+          JSON.stringify(
+            [out, into].map((t) =>
+              t.canonicalAccountId
+                ? {
+                    id: t.id,
+                    connection: t.connection,
+                    account: t.account,
+                    date: t.date,
+                    name: t.name,
+                    amount: t.amount,
+                    currency: t.currency,
+                    pending: t.pending,
+                    account_type: t.account_type,
+                    canonicalAccountId: t.canonicalAccountId,
+                    canonicalTransactionId: t.canonicalTransactionId,
+                  }
+                : t,
+            ),
+          ),
+        )
         .digest("hex");
       pairs.push({
         key,
@@ -53,19 +78,46 @@ export function transferState(store: Store) {
   store.db.exec(
     "CREATE TABLE IF NOT EXISTS transfer_decisions(env TEXT,key TEXT,status TEXT,PRIMARY KEY(env,key))",
   );
-  const rows = store.db
-    .prepare(
-      "SELECT t.id,t.connection,t.account,t.date,t.name,t.amount,t.currency,t.pending,at.type AS account_type FROM transactions t JOIN accounts a ON a.env=t.env AND a.connection=t.connection AND a.id=t.account LEFT JOIN account_types at ON at.env=t.env AND at.connection=t.connection AND at.account=t.account WHERE t.env=? ORDER BY t.connection,t.id",
-    )
-    .all(store.env);
-  const decisions = new Map(
-    (
-      store.db
-        .prepare("SELECT key,status FROM transfer_decisions WHERE env=?")
-        .all(store.env) as any[]
-    ).map((d) => [d.key, d.status]),
-  );
+  const rows = store.repository
+    .history("all")
+    .sort(
+      (a, b) =>
+        a.connection.localeCompare(b.connection) || a.id.localeCompare(b.id),
+    );
   const pairs = transferCandidates(rows);
+  // Exact legacy SELECT projection/order is part of the old fingerprint contract.
+  const legacy = rows.map((t) => ({
+    id: t.id,
+    connection: t.connection,
+    account: t.account,
+    date: t.date,
+    name: t.name,
+    amount: t.amount,
+    currency: t.currency,
+    pending: t.pending,
+    account_type: t.providerAccountType,
+  }));
+  const legacyPairs = transferCandidates(legacy);
+  const aliases = new Map<string, string>();
+  for (const p of legacyPairs) {
+    const match = pairs.find(
+      (q) =>
+        q.out.connection === p.out.connection &&
+        q.out.id === p.out.id &&
+        q.into.connection === p.into.connection &&
+        q.into.id === p.into.id,
+    );
+    if (match) aliases.set(p.key, match.key);
+  }
+  const classification = store.repository.decisions(
+    "transfer_decisions",
+    aliases,
+  );
+  const decisions = new Map(
+    classification.resolved.map((d) => [d.key, d.status]),
+  );
+  for (const d of classification.unresolved)
+    if (d.canonicalKey) decisions.set(d.canonicalKey, "conflict");
   const used = new Set<string>();
   const confirmed: any[] = [];
   const review: any[] = [];
@@ -86,6 +138,7 @@ export function transferState(store: Store) {
   }
   return {
     confirmed,
+    unresolved: classification.unresolved,
     review: review.filter(
       (p) => ![p.out, p.into].some((t) => used.has(transactionKey(t))),
     ),

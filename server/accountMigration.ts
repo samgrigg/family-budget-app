@@ -3,7 +3,8 @@ import { randomUUID } from "node:crypto";
 import { chmod, mkdir, open, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
-const version = 1;
+export const accountSchemaVersion = 2;
+const version = accountSchemaVersion;
 const schema = `
 CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL);
 CREATE TABLE app_institutions(env TEXT NOT NULL,id TEXT NOT NULL,name TEXT NOT NULL,provisional INTEGER NOT NULL DEFAULT 1,PRIMARY KEY(env,id));
@@ -21,7 +22,7 @@ export function ensureAccountIdentities(db: Database.Database): void {
   db.transaction(() => {
     const sources = db
       .prepare(
-        `SELECT c.*,d.name,d.label FROM connections c LEFT JOIN institution_details d ON d.env=c.env AND d.connection=c.id`,
+        `SELECT c.*,d.name,d.label FROM (SELECT env,id,status,last_sync FROM connections UNION SELECT env,connection,NULL,NULL FROM accounts WHERE NOT EXISTS(SELECT 1 FROM connections c WHERE c.env=accounts.env AND c.id=accounts.connection) UNION SELECT env,connection,NULL,NULL FROM transactions WHERE NOT EXISTS(SELECT 1 FROM connections c WHERE c.env=transactions.env AND c.id=transactions.connection)) c LEFT JOIN institution_details d ON d.env=c.env AND d.connection=c.id`,
       )
       .all() as any[];
     for (const source of sources) {
@@ -47,7 +48,7 @@ export function ensureAccountIdentities(db: Database.Database): void {
       }
       const accounts = db
         .prepare(
-          `SELECT a.*,t.type,COALESCE(p.hidden,0) AS hidden FROM accounts a LEFT JOIN account_types t ON t.env=a.env AND t.connection=a.connection AND t.account=a.id LEFT JOIN account_preferences p ON p.env=a.env AND p.connection=a.connection AND p.account=a.id WHERE a.env=? AND a.connection=?`,
+          `SELECT a.*,t.type,COALESCE(p.hidden,0) AS hidden FROM (SELECT env,connection,id,name,mask FROM accounts UNION SELECT DISTINCT env,connection,account,'Unknown account','' FROM transactions WHERE NOT EXISTS(SELECT 1 FROM accounts a WHERE a.env=transactions.env AND a.connection=transactions.connection AND a.id=transactions.account)) a LEFT JOIN account_types t ON t.env=a.env AND t.connection=a.connection AND t.account=a.id LEFT JOIN account_preferences p ON p.env=a.env AND p.connection=a.connection AND p.account=a.id WHERE a.env=? AND a.connection=?`,
         )
         .all(source.env, source.id) as any[];
       for (const account of accounts) {
@@ -135,12 +136,39 @@ export async function migrateDatabase(
       });
     }
   }
+  applyAccountMigration(db);
+}
+
+/** Synchronous only after startup backup, or for memory/fresh databases. */
+export function applyAccountMigration(db: Database.Database): void {
+  const hasVersions = db
+    .prepare(
+      "SELECT 1 FROM sqlite_master WHERE type='table' AND name='schema_migrations'",
+    )
+    .get();
+  if (
+    hasVersions &&
+    db.prepare("SELECT 1 FROM schema_migrations WHERE version=?").get(version)
+  )
+    return;
   db.transaction(() => {
-    db.exec(
-      hasVersions
-        ? schema.slice(schema.indexOf("CREATE TABLE app_institutions"))
-        : schema,
-    );
+    if (
+      !hasVersions ||
+      !db.prepare("SELECT 1 FROM schema_migrations WHERE version=1").get()
+    ) {
+      db.exec(
+        hasVersions
+          ? schema.slice(schema.indexOf("CREATE TABLE app_institutions"))
+          : schema,
+      );
+      db.prepare("INSERT INTO schema_migrations VALUES(1,?)").run(
+        new Date().toISOString(),
+      );
+    }
+    db.exec(`CREATE TABLE IF NOT EXISTS transaction_metadata(env TEXT,source_id TEXT,transaction_id TEXT,raw_name TEXT,merchant_name TEXT,PRIMARY KEY(env,source_id,transaction_id));
+      CREATE TABLE IF NOT EXISTS source_account_metadata(env TEXT,source_id TEXT,account_id TEXT,subtype TEXT,ownership TEXT,PRIMARY KEY(env,source_id,account_id));
+      CREATE TABLE IF NOT EXISTS decision_history(id INTEGER PRIMARY KEY,env TEXT,kind TEXT,legacy_key TEXT,payload TEXT NOT NULL,archived_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS decision_id_aliases(env TEXT,kind TEXT,legacy_key TEXT,canonical_key TEXT,PRIMARY KEY(env,kind,legacy_key,canonical_key));`);
     ensureAccountIdentities(db);
     db.prepare("INSERT INTO schema_migrations VALUES(?,?)").run(
       version,

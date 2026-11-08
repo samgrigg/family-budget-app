@@ -1,4 +1,10 @@
 import Database from "better-sqlite3";
+import {
+  accountSchemaVersion,
+  applyAccountMigration,
+  ensureAccountIdentities,
+} from "./accountMigration";
+import { AccountRepository } from "./account-repository";
 import { seal, unseal } from "./crypto";
 export class Store {
   db: Database.Database;
@@ -8,11 +14,36 @@ export class Store {
     public env: string,
   ) {
     this.db = typeof path === "string" ? new Database(path) : path;
+    const disk = (this.db.pragma("database_list") as any[]).find(
+      (d) => d.name === "main",
+    )?.file;
+    const existing = this.db
+      .prepare(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='connections'",
+      )
+      .get();
+    const versions = this.db
+      .prepare(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='schema_migrations'",
+      )
+      .get();
+    if (
+      disk &&
+      existing &&
+      (!versions ||
+        !this.db
+          .prepare("SELECT 1 FROM schema_migrations WHERE version=?")
+          .get(accountSchemaVersion))
+    )
+      throw Error(
+        "Await migrateDatabase before constructing Store for an existing disk database",
+      );
     this.db.pragma("journal_mode = WAL");
-    this.db.exec(
-      `CREATE TABLE IF NOT EXISTS account_types(env TEXT,connection TEXT,account TEXT,type TEXT,PRIMARY KEY(env,connection,account));CREATE TABLE IF NOT EXISTS institution_details(env TEXT,connection TEXT,name TEXT,label TEXT,PRIMARY KEY(env,connection));CREATE TABLE IF NOT EXISTS account_preferences(env TEXT,connection TEXT,account TEXT,hidden INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(env,connection,account));CREATE TABLE IF NOT EXISTS connections(env TEXT,id TEXT,token TEXT,cursor TEXT,status TEXT,last_sync TEXT,PRIMARY KEY(env,id));CREATE TABLE IF NOT EXISTS accounts(env TEXT,connection TEXT,id TEXT,name TEXT,mask TEXT,PRIMARY KEY(env,connection,id));CREATE TABLE IF NOT EXISTS transactions(env TEXT,connection TEXT,id TEXT,account TEXT,date TEXT,name TEXT,amount TEXT,currency TEXT,pending INTEGER,PRIMARY KEY(env,connection,id));`,
-    );
+    bootstrapLegacy(this.db);
+    applyAccountMigration(this.db);
+    this.repository = new AccountRepository(this.db, this.env);
   }
+  repository: AccountRepository;
   connect(id: string, token: string, accounts: any[]) {
     this.db.transaction(() => {
       this.db
@@ -21,21 +52,50 @@ export class Store {
         )
         .run(this.env, id, seal(token, this.key), "waiting");
       this.accounts(id, accounts);
+      ensureAccountIdentities(this.db);
     })();
   }
   accounts(id: string, accounts: any[]) {
-    const q = this.db.prepare(
-      "INSERT OR REPLACE INTO accounts VALUES(?,?,?,?,?)",
-    );
-    for (const a of accounts) {
-      q.run(this.env, id, a.account_id, a.name, a.mask ?? "");
-      if (typeof a.type === "string")
+    this.db.transaction(() => {
+      const q = this.db.prepare(
+        "INSERT OR REPLACE INTO accounts VALUES(?,?,?,?,?)",
+      );
+      for (const a of accounts) {
+        q.run(this.env, id, a.account_id, a.name, a.mask ?? "");
         this.db
           .prepare(
-            "INSERT INTO account_types VALUES(?,?,?,?) ON CONFLICT(env,connection,account) DO UPDATE SET type=excluded.type",
+            "INSERT OR REPLACE INTO source_account_metadata VALUES(?,?,?,?,?)",
           )
-          .run(this.env, id, a.account_id, a.type);
-    }
+          .run(
+            this.env,
+            id,
+            a.account_id,
+            a.subtype ?? null,
+            a.ownership_type ?? null,
+          );
+        if (typeof a.type === "string")
+          this.db
+            .prepare(
+              "INSERT INTO account_types VALUES(?,?,?,?) ON CONFLICT(env,connection,account) DO UPDATE SET type=excluded.type",
+            )
+            .run(this.env, id, a.account_id, a.type);
+      }
+      ensureAccountIdentities(this.db);
+      for (const a of accounts)
+        this.db
+          .prepare(
+            "UPDATE app_accounts SET type=COALESCE(?,type),subtype=COALESCE(subtype,?),ownership=COALESCE(ownership,?) WHERE env=? AND id=(SELECT account_id FROM source_accounts WHERE env=? AND source_id=? AND provider_account_id=?)",
+          )
+          .run(
+            typeof a.type === "string" ? a.type : null,
+            a.subtype ?? null,
+            a.ownership_type ?? null,
+            this.env,
+            this.env,
+            id,
+            a.account_id,
+          );
+    })();
   }
   connection(id: string): any {
     const row = this.db
@@ -64,14 +124,7 @@ export class Store {
       .run(this.env, id, name);
   }
   accountList(): any[] {
-    return this.db
-      .prepare(
-        `SELECT a.*,COALESCE(p.hidden,0) AS hidden
-      FROM accounts a LEFT JOIN account_preferences p
-      ON p.env=a.env AND p.connection=a.connection AND p.account=a.id
-      WHERE a.env=? ORDER BY a.connection,a.name,a.id`,
-      )
-      .all(this.env);
+    return this.repository.accounts();
   }
   setAccountHidden(connection: string, account: string, hidden: boolean) {
     if (
@@ -80,20 +133,34 @@ export class Store {
         .get(this.env, connection, account)
     )
       return false;
-    this.db
-      .prepare(
-        `INSERT INTO account_preferences VALUES(?,?,?,?)
+    this.db.transaction(() => {
+      ensureAccountIdentities(this.db);
+      this.db
+        .prepare(
+          `INSERT INTO account_preferences VALUES(?,?,?,?)
       ON CONFLICT(env,connection,account) DO UPDATE SET hidden=excluded.hidden`,
-      )
-      .run(this.env, connection, account, hidden ? 1 : 0);
+        )
+        .run(this.env, connection, account, hidden ? 1 : 0);
+      this.db
+        .prepare(
+          "UPDATE app_accounts SET included=? WHERE env=? AND id=(SELECT account_id FROM source_accounts WHERE env=? AND source_id=? AND provider_account_id=?)",
+        )
+        .run(hidden ? 0 : 1, this.env, this.env, connection, account);
+    })();
     return true;
   }
   transactions(): any[] {
-    return this.db
-      .prepare(
-        "SELECT t.id,t.connection,t.account AS account_id,a.mask,t.date,t.name,t.amount,t.currency,t.pending,a.name AS account FROM transactions t LEFT JOIN accounts a ON a.env=t.env AND a.connection=t.connection AND a.id=t.account WHERE t.env=? AND NOT EXISTS (SELECT 1 FROM account_preferences p WHERE p.env=t.env AND p.connection=t.connection AND p.account=t.account AND p.hidden=1) ORDER BY t.date DESC,t.id LIMIT 2000",
-      )
-      .all(this.env);
+    const accounts = new Map(
+      this.repository.accounts().map((a) => [a.canonicalAccountId, a]),
+    );
+    return this.repository
+      .history("included")
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .map((t) => ({
+        ...t,
+        account_id: t.account,
+        account: accounts.get(t.canonicalAccountId)?.name,
+      }));
   }
   commit(id: string, pages: any[], cursor: string, accounts: any[]) {
     this.db.transaction(() => {
@@ -108,6 +175,17 @@ export class Store {
         for (const t of [...p.added, ...p.modified]) {
           if (t.pending_transaction_id)
             del.run(this.env, id, t.pending_transaction_id);
+          this.db
+            .prepare(
+              "INSERT OR REPLACE INTO transaction_metadata VALUES(?,?,?,?,?)",
+            )
+            .run(
+              this.env,
+              id,
+              t.transaction_id,
+              t.name ?? null,
+              t.merchant_name ?? null,
+            );
           put.run(
             this.env,
             id,
@@ -138,6 +216,12 @@ export class Store {
           this.env,
           id,
         );
+      ensureAccountIdentities(this.db);
+      this.db
+        .prepare(
+          "UPDATE data_sources SET status=(SELECT status FROM connections WHERE env=? AND id=?),last_checked=(SELECT last_sync FROM connections WHERE env=? AND id=?) WHERE env=? AND id=?",
+        )
+        .run(this.env, id, this.env, id, this.env, id);
     })();
   }
   remove(id: string) {
@@ -157,4 +241,10 @@ export class Store {
         .run(this.env, id);
     })();
   }
+}
+
+export function bootstrapLegacy(db: Database.Database) {
+  db.exec(
+    `CREATE TABLE IF NOT EXISTS account_types(env TEXT,connection TEXT,account TEXT,type TEXT,PRIMARY KEY(env,connection,account));CREATE TABLE IF NOT EXISTS institution_details(env TEXT,connection TEXT,name TEXT,label TEXT,PRIMARY KEY(env,connection));CREATE TABLE IF NOT EXISTS account_preferences(env TEXT,connection TEXT,account TEXT,hidden INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(env,connection,account));CREATE TABLE IF NOT EXISTS connections(env TEXT,id TEXT,token TEXT,cursor TEXT,status TEXT,last_sync TEXT,PRIMARY KEY(env,id));CREATE TABLE IF NOT EXISTS accounts(env TEXT,connection TEXT,id TEXT,name TEXT,mask TEXT,PRIMARY KEY(env,connection,id));CREATE TABLE IF NOT EXISTS transactions(env TEXT,connection TEXT,id TEXT,account TEXT,date TEXT,name TEXT,amount TEXT,currency TEXT,pending INTEGER,PRIMARY KEY(env,connection,id));`,
+  );
 }

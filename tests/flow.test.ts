@@ -134,6 +134,12 @@ it("includes unconfirmed spending and deposits, global-hidden accounts, and inac
   ).toBe(10);
   expect(g.nodes.some((n) => n.name === "EXAMPLE INC")).toBe(true);
   expect(g.nodes.some((n) => n.name === "Other income")).toBe(true);
-  expect(g.nodes.some((n) => n.id.includes("inactive"))).toBe(true);
+  expect(
+    g.nodes.some((n) =>
+      n.id.includes(
+        s.accountList().find((a) => a.id === "inactive")!.canonicalAccountId,
+      ),
+    ),
+  ).toBe(true);
   s.db.close();
 });

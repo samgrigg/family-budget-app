@@ -2,6 +2,9 @@ import { mkdirSync, readFileSync, chmodSync } from "node:fs";
 import { createServer as httpServer } from "node:http";
 import { createServer as httpsServer } from "node:https";
 import express from "express";
+import Database from "better-sqlite3";
+import { migrateDatabase } from "./accountMigration";
+import { bootstrapLegacy } from "./store";
 import { Store } from "./store";
 import { Plaid } from "./plaid";
 import { createApp } from "./app";
@@ -28,7 +31,22 @@ if (!rawKey || !/^[a-f0-9]{64}$/i.test(rawKey))
     "Set TOKEN_ENCRYPTION_KEY to 32 random bytes encoded as hex. See README.",
   );
 mkdirSync("data", { recursive: true, mode: 0o700 });
-const store = new Store("data/budget.sqlite", Buffer.from(rawKey, "hex"), env);
+const database = new Database("data/budget.sqlite");
+try {
+  if (
+    !database
+      .prepare(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='connections'",
+      )
+      .get()
+  )
+    bootstrapLegacy(database);
+  await migrateDatabase(database);
+} catch (error) {
+  database.close();
+  throw error;
+}
+const store = new Store(database, Buffer.from(rawKey, "hex"), env);
 chmodSync("data/budget.sqlite", 0o600);
 const provider = new Plaid(
   env,

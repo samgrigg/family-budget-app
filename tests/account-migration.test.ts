@@ -3,7 +3,7 @@ import Database from "better-sqlite3";
 import { mkdtemp, stat, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Store } from "../server/store";
+import { Store, bootstrapLegacy } from "../server/store";
 import {
   migrateDatabase,
   ensureAccountIdentities,
@@ -23,7 +23,7 @@ const tables = [
 function fixture(path = ":memory:") {
   const db = new Database(path);
   // Store creates the exact legacy schema, with no provider calls or real data.
-  new Store(db, Buffer.alloc(32), "sandbox");
+  bootstrapLegacy(db);
   db.exec(`CREATE TABLE bills(env TEXT,key TEXT,name TEXT,status TEXT,excluded TEXT NOT NULL DEFAULT '[]',PRIMARY KEY(env,key));
     CREATE TABLE income_decisions(env TEXT,key TEXT,name TEXT,status TEXT,PRIMARY KEY(env,key));
     CREATE TABLE transfer_decisions(env TEXT,key TEXT,status TEXT,PRIMARY KEY(env,key));`);
@@ -138,7 +138,7 @@ describe("account identity migration", () => {
         db.prepare("SELECT * FROM app_accounts ORDER BY env,included").all(),
       ).toEqual(accounts);
       expect(db.prepare("SELECT * FROM schema_migrations").all()).toHaveLength(
-        1,
+        2,
       );
     } finally {
       db.close();
@@ -194,7 +194,7 @@ describe("account identity migration", () => {
       expect(snapshot(db)).toEqual(before);
       await migrateDatabase(db);
       expect(db.prepare("SELECT * FROM schema_migrations").all()).toHaveLength(
-        1,
+        2,
       );
     } finally {
       db.close();
@@ -244,4 +244,32 @@ describe("account identity migration", () => {
       await rm(dir, { recursive: true, force: true });
     }
   });
+});
+
+it("backs up a version-one database before read-boundary schema upgrade and guards disk Store construction", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "budget-read-upgrade-"));
+  const path = join(dir, "legacy.sqlite");
+  const db = fixture(path);
+  try {
+    expect(() => new Store(db, Buffer.alloc(32), "sandbox")).toThrow(
+      /Await migrateDatabase/,
+    );
+    await migrateDatabase(db);
+    db.exec(
+      "DROP TABLE transaction_metadata; DROP TABLE source_account_metadata; DROP TABLE decision_id_aliases; DELETE FROM schema_migrations WHERE version=2",
+    );
+    const existing = (await readdir(join(dir, "migration-backups"))).length;
+    expect(() => new Store(db, Buffer.alloc(32), "sandbox")).toThrow(
+      /Await migrateDatabase/,
+    );
+    await migrateDatabase(db);
+    expect((await readdir(join(dir, "migration-backups"))).length).toBe(
+      existing + 1,
+    );
+    const s = new Store(db, Buffer.alloc(32), "sandbox");
+    expect(s.repository.listAccounts()).toHaveLength(2);
+  } finally {
+    db.close();
+    await rm(dir, { recursive: true, force: true });
+  }
 });

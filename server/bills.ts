@@ -10,6 +10,8 @@ export type Entry = {
   amount: string;
   currency: string;
   pending: number;
+  canonicalAccountId?: string;
+  canonicalTransactionId?: string;
 };
 export function payee(name: string) {
   return name
@@ -21,7 +23,11 @@ export function payee(name: string) {
 export function groupKey(t: Entry) {
   return createHash("sha256")
     .update(
-      JSON.stringify([t.connection, t.account, t.currency, payee(t.name)]),
+      JSON.stringify(
+        t.canonicalAccountId
+          ? [t.canonicalAccountId, t.currency, payee(t.name)]
+          : [t.connection, t.account, t.currency, payee(t.name)],
+      ),
     )
     .digest("hex");
 }
@@ -99,31 +105,55 @@ export function installBills(store: Store) {
 }
 export function billState(store: Store, months: number, now = new Date()) {
   const confirmed = confirmedTransactionKeys(store);
-  const rows = (
-    store.db
-      .prepare(
-        "SELECT t.* FROM transactions t WHERE t.env=? AND NOT EXISTS (SELECT 1 FROM account_preferences p WHERE p.env=t.env AND p.connection=t.connection AND p.account=t.account AND p.hidden=1) ORDER BY date",
-      )
-      .all(store.env) as Entry[]
-  ).filter((t) => !confirmed.has(transactionKey(t)));
+  const history = store.repository.history("included");
+  const classification = classificationDecisions(
+    store,
+    "bills",
+    store.repository.history("all"),
+  );
+  const rows = history.filter((t) => !confirmed.has(transactionKey(t)));
   const accounts = store.accountList();
   const institutions = store.list();
   const label = (t?: Entry) => {
-    const a = accounts.find(a => a.connection === t?.connection && a.id === t?.account);
-    const institution = institutions.find(c => c.id === t?.connection)?.display_name;
-    return a ? `${institution ? `${institution} · ` : ""}${a.name}${a.mask ? ` ••${a.mask}` : ""}` : "Unknown account";
+    const a = accounts.find(
+      (a) => a.connection === t?.connection && a.id === t?.account,
+    );
+    const institution = institutions.find(
+      (c) => c.id === t?.connection,
+    )?.display_name;
+    return a
+      ? `${institution ? `${institution} · ` : ""}${a.name}${a.mask ? ` ••${a.mask}` : ""}`
+      : "Unknown account";
   };
   // Include hidden destination accounts, but never infer a destination from amount alone.
-  const all = store.db.prepare("SELECT t.*, at.type AS account_type FROM transactions t LEFT JOIN account_types at ON at.env=t.env AND at.connection=t.connection AND at.account=t.account WHERE t.env=?").all(store.env) as (Entry & {account_type: string})[];
+  const all = store.repository.history("all");
   const paymentRoute = (t: Entry) => {
-    const matches = all.filter(other => !other.pending && ["loan","credit"].includes(other.account_type) &&
-      !(other.connection === t.connection && other.account === t.account) && t.currency && other.currency === t.currency &&
-      Number(other.amount) === -Number(t.amount) && Math.abs(Date.parse(other.date)-Date.parse(t.date)) <= 3*86400000 &&
-      /\b(payment|pmt|autopay)\b/i.test(t.name) && /\b(payment|pmt|autopay)\b/i.test(other.name));
+    const matches = all.filter(
+      (other) =>
+        !other.pending &&
+        ["loan", "credit"].includes(other.account_type) &&
+        !(t.canonicalAccountId && other.canonicalAccountId
+          ? t.canonicalAccountId === other.canonicalAccountId
+          : other.connection === t.connection && other.account === t.account) &&
+        t.currency &&
+        other.currency === t.currency &&
+        Number(other.amount) === -Number(t.amount) &&
+        Math.abs(Date.parse(other.date) - Date.parse(t.date)) <= 3 * 86400000 &&
+        /\b(payment|pmt|autopay)\b/i.test(t.name) &&
+        /\b(payment|pmt|autopay)\b/i.test(other.name),
+    );
     const destination = matches.length === 1 ? matches[0] : undefined;
-    return { ...t, fromAccount: label(t), toPayee: t.name, possibleDestination: destination ? label(destination) : null };
+    return {
+      ...t,
+      fromAccount: label(t),
+      toPayee: t.name,
+      possibleDestination: destination ? label(destination) : null,
+    };
   };
-  const withRoutes = (b: any) => ({ ...b, transactions: b.transactions.map(paymentRoute) });
+  const withRoutes = (b: any) => ({
+    ...b,
+    transactions: b.transactions.map(paymentRoute),
+  });
   const attribution = (t?: Entry) => {
     const a = accounts.find(
       (a) => a.connection === t?.connection && a.id === t?.account,
@@ -142,9 +172,7 @@ export function billState(store: Store, months: number, now = new Date()) {
       t.date >= cutoff.toISOString().slice(0, 10) &&
       t.date <= now.toISOString().slice(0, 10),
   );
-  const decisions = store.db
-    .prepare("SELECT * FROM bills WHERE env=?")
-    .all(store.env) as any[];
+  const decisions = classification.resolved;
   const visibleDecisions = decisions.filter((d) => visibleKeys.has(d.key));
   const suggestions = candidates(recent).filter(
     (c) => !decisions.some((d) => d.key === c.key),
@@ -158,7 +186,7 @@ export function billState(store: Store, months: number, now = new Date()) {
           groupKey(t) === d.key &&
           !t.pending &&
           Number(t.amount) > 0 &&
-          !excluded.includes(t.id),
+          !excluded.includes(transactionKey(t)),
       );
       return {
         ...attribution(matching[0]),
@@ -169,10 +197,12 @@ export function billState(store: Store, months: number, now = new Date()) {
       };
     });
   return {
-    suggestions: suggestions.map((b) => withRoutes({
-      ...b,
-      ...attribution(b.transactions[0]),
-    })),
+    suggestions: suggestions.map((b) =>
+      withRoutes({
+        ...b,
+        ...attribution(b.transactions[0]),
+      }),
+    ),
     saved: saved.map(withRoutes),
     dismissed: visibleDecisions
       .filter((d) => d.status === "dismissed")
@@ -183,5 +213,24 @@ export function billState(store: Store, months: number, now = new Date()) {
       })),
     history: { first: rows[0]?.date ?? null, last: rows.at(-1)?.date ?? null },
     months,
+    unresolved: classification.unresolved,
+    unresolvedExclusions: classification.resolved.flatMap((d) =>
+      JSON.parse(d.excluded)
+        .filter((id: any) => typeof id !== "string")
+        .map((e: any) => ({ ...e, key: d.key })),
+    ),
   };
+}
+
+export function classificationDecisions(
+  store: Store,
+  kind: "bills" | "income_decisions",
+  rows: any[],
+) {
+  const evidence = rows.map((t) => ({
+    ...t,
+    legacyGroupKey: groupKey({ ...t, canonicalAccountId: undefined }),
+  }));
+  const aliases = new Map(evidence.map((t) => [t.legacyGroupKey, groupKey(t)]));
+  return store.repository.decisions(kind, aliases, evidence);
 }

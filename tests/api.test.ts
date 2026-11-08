@@ -211,3 +211,134 @@ it("supports income review decisions through the protected API", async () => {
   expect((await decide("dismissed")).status).toBe(200);
   s.db.close();
 });
+
+import { groupKey, billState } from "../server/bills";
+import { incomeState } from "../server/income";
+import { transferCandidates, transferState } from "../server/transfers";
+it("undoes migrated bills/income and reconsiders migrated transfers without resurrecting legacy decisions", async () => {
+  const s = new Store(":memory:", Buffer.alloc(32), "sandbox");
+  s.connect("c", "token", [
+    { account_id: "a", name: "Checking", type: "depository" },
+    { account_id: "b", name: "Savings", type: "depository" },
+  ]);
+  const app = createApp(
+    s,
+    {
+      configured: true,
+      call: async () => {
+        throw Error("No provider call expected");
+      },
+    } as any,
+    "http://localhost:3000",
+  );
+  const put = s.db.prepare(
+    "INSERT INTO transactions VALUES(?,?,?,?,?,?,?,?,?)",
+  );
+  for (let i = 0; i < 3; i++) {
+    const date = new Date();
+    date.setUTCDate(1);
+    date.setUTCMonth(date.getUTCMonth() - i);
+    for (const [name, amount] of [
+      ["Power", "30"],
+      ["Employer payroll", "-100"],
+    ])
+      put.run(
+        s.env,
+        "c",
+        name + i,
+        "a",
+        date.toISOString().slice(0, 10),
+        name,
+        amount,
+        "USD",
+        0,
+      );
+  }
+  for (const [id, account, amount] of [
+    ["out", "a", "50"],
+    ["in", "b", "-50"],
+  ])
+    put.run(
+      s.env,
+      "c",
+      id,
+      account,
+      new Date().toISOString().slice(0, 10),
+      "Transfer",
+      amount,
+      "USD",
+      0,
+    );
+  const raw = s.db.prepare("SELECT * FROM transactions").all() as any[];
+  const oldBill = groupKey(raw.find((t) => t.name === "Power"));
+  const oldIncome = groupKey(raw.find((t) => t.name === "Employer payroll"));
+  s.db
+    .prepare("INSERT INTO bills VALUES(?,?,?,?,?)")
+    .run(s.env, oldBill, "Power", "saved", '["removed-evidence"]');
+  incomeState(s);
+  s.db
+    .prepare("INSERT INTO income_decisions VALUES(?,?,?,?)")
+    .run(s.env, oldIncome, "Salary", "saved");
+  const projection = s.db
+    .prepare(
+      "SELECT t.id,t.connection,t.account,t.date,t.name,t.amount,t.currency,t.pending,at.type AS account_type FROM transactions t JOIN accounts a ON a.env=t.env AND a.connection=t.connection AND a.id=t.account LEFT JOIN account_types at ON at.env=t.env AND at.connection=t.connection AND at.account=t.account WHERE t.env=? ORDER BY t.connection,t.id",
+    )
+    .all(s.env);
+  const oldTransfer = transferCandidates(projection)[0].key;
+  transferState(s);
+  s.db
+    .prepare("INSERT INTO transfer_decisions VALUES(?,?,?)")
+    .run(s.env, oldTransfer, "confirmed");
+  const session = await request(app)
+    .get("/api/state")
+    .set("Host", "localhost:3000");
+  const post = (path: string, body: any) =>
+    request(app)
+      .post(path)
+      .set("Host", "localhost:3000")
+      .set("Origin", "http://localhost:3000")
+      .set("Cookie", session.headers["set-cookie"])
+      .set("X-CSRF-Token", session.body.csrf)
+      .send(body);
+  const bill = billState(s, 6).saved[0],
+    income = incomeState(s).saved[0],
+    pair = transferState(s).confirmed[0];
+  expect(
+    (
+      await post("/api/bills", {
+        key: bill.key,
+        name: bill.name,
+        status: "review",
+      })
+    ).status,
+  ).toBe(200);
+  expect(billState(s, 6).saved).toHaveLength(0);
+  expect(
+    (
+      await post("/api/income", {
+        key: income.key,
+        name: income.name,
+        status: "review",
+      })
+    ).status,
+  ).toBe(200);
+  expect(incomeState(s).saved).toHaveLength(0);
+  expect(
+    (await post("/api/transfers", { key: pair.key, status: "rejected" }))
+      .status,
+  ).toBe(200);
+  expect(transferState(s).confirmed).toHaveLength(0);
+  expect(transferState(s).rejected).toHaveLength(1);
+  expect(
+    (await post("/api/transfers", { key: pair.key, status: "review" })).status,
+  ).toBe(200);
+  expect(transferState(s).rejected).toHaveLength(0);
+  expect(transferState(s).confirmed[0].automatic).toBe(true);
+  const archive = s.db.prepare("SELECT * FROM decision_history").all() as any[];
+  expect(archive.find((d) => d.legacy_key === oldBill).payload).toContain(
+    "removed-evidence",
+  );
+  expect(archive.some((d) => d.legacy_key === oldIncome)).toBe(true);
+  expect(archive.some((d) => d.legacy_key === oldTransfer)).toBe(true);
+  s.db.close();
+});
