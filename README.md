@@ -96,3 +96,9 @@ When another confirmed plan is flagged, choose **Yes, this is a duplicate — re
 Merges require the same currency and validate the resulting plan. A stale preview must be reviewed again. Original snapshots and source aliases remain in the local database for recovery; there is no undo interface yet. Restart the app after updating to load the merge routes and metadata table.
 
 An imported auto-transfer flagged as a duplicate can also merge into its confirmed bill. That merge always keeps the bill’s details and payment history. Transfer notes/references are retained; transfer payment records remain in merge history and do not replace bill payments.
+
+## Find supporting transactions
+
+Expand a bill under **Budget → Planned Commitments**, then click **Find supporting transactions**. It immediately searches included local posted outflows by the bill description or full payment amount. Refine the description, amount, account/date filters, or require both description and amount. Results show why they matched and flag confirmed account transfers as funding movements. Credit card repayment searches use bank debits only.
+
+Search covers all eligible stored history, with 50 candidates per page, and does not fetch more bank data. Results are candidates, not automatically attached evidence; searching never changes the bill or bank transactions. Saved changes to the bill or planning month reset the search scope. Restart the app after updating to load the new search endpoint.

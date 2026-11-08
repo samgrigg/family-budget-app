@@ -1,3 +1,4 @@
+import BillEvidence from "./BillEvidence";
 import BillMerge from "./BillMerge";
 import { billPlanSubmission } from "./billPlanSubmission";
 import BillClassificationFields from "./BillClassificationFields";
@@ -362,6 +363,25 @@ export default function BillPlan({
                         History estimates are shown separately from your plan.
                       </p>
                     )}
+                    <BillEvidence
+                      key={JSON.stringify([
+                        r.id,
+                        r.name,
+                        r.amount,
+                        r.amountMode,
+                        r.planningEstimate,
+                        r.currency,
+                        r.expenseType,
+                        month,
+                        r.payments,
+                        r.resolvedAmount?.basis === "actual"
+                          ? r.resolvedAmount.amount
+                          : null,
+                      ])}
+                      row={r}
+                      month={month}
+                      api={api}
+                    />
                     <form
                       key={`${r.id}:${month}:${formVersions[r.id] ?? 0}`}
                       className="plan-form"

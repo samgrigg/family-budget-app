@@ -945,3 +945,15 @@ input[type="month"] {
   background: #e4e4e7;
   color: #18181b;
 }
+.bill-evidence {
+  margin-block: 1rem;
+}
+.evidence-matches {
+  list-style: none;
+  padding: 0;
+}
+.evidence-matches li {
+  padding-block: 1rem;
+  border-bottom: 1px solid #e4e4e7;
+  overflow-wrap: anywhere;
+}

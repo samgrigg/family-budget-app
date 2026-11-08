@@ -1,3 +1,4 @@
+import { installBillEvidenceApi } from "./bill-evidence";
 import { installBillMergeApi } from "./bill-merge";
 import { installBillPlanApi, annotateRepayments, type Plan } from "./bill-plan";
 import { installReplacementApi } from "./source-replacements";
@@ -204,6 +205,7 @@ export function createApp(
   });
   installBillPlanApi(app, store, billDrafts);
   installBillMergeApi(app, store, billDrafts);
+  installBillEvidenceApi(app, store, billDrafts);
   app.get("/api/bills", (req, res) => {
     const months = Number(req.query.months ?? 6);
     if (![3, 6, 12].includes(months))
