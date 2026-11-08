@@ -73,7 +73,10 @@ export default function App() {
       setState(data);
       setAccountRevision((revision) => revision + 1);
     }
-    if (!r.ok) throw Error(data.error || "Request failed");
+    if (!r.ok)
+      throw Object.assign(Error(data.error || "Request failed"), {
+        duplicatePlans: data.duplicatePlans,
+      });
     return data;
   }
   async function run(fn: () => Promise<void>) {

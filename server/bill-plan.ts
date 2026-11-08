@@ -22,6 +22,7 @@ export type Plan = {
   kind: string;
   status: string;
   source?: { cell: string; value: string; formula: string };
+  sources?: { cell: string; value: string; formula: string }[];
   acknowledgeDuplicate?: boolean;
   amountMode?: "fixed" | "variable";
   planningEstimate?: string;
@@ -31,7 +32,7 @@ export type Plan = {
 };
 export function installBillPlan(store: Store) {
   store.db.exec(
-    "CREATE TABLE IF NOT EXISTS bill_plan(env TEXT NOT NULL,id TEXT NOT NULL,record TEXT NOT NULL,PRIMARY KEY(env,id))",
+    "CREATE TABLE IF NOT EXISTS bill_plan(env TEXT NOT NULL,id TEXT NOT NULL,record TEXT NOT NULL,PRIMARY KEY(env,id)); CREATE TABLE IF NOT EXISTS bill_plan_merges(env TEXT NOT NULL,source_id TEXT NOT NULL,target_id TEXT NOT NULL,source_record TEXT NOT NULL,target_record TEXT NOT NULL,PRIMARY KEY(env,source_id))",
   );
 }
 export function storedPlans(store: Store): Plan[] {
@@ -48,6 +49,15 @@ export function storedPlans(store: Store): Plan[] {
       .prepare("SELECT record FROM bill_plan WHERE env=? ORDER BY id")
       .all(store.env) as { record: string }[]
   ).map((r) => JSON.parse(r.record));
+}
+export function activePlanRecords(store: Store, drafts: Plan[]): Plan[] {
+  const records = new Map(drafts.map((r) => [r.id, r]));
+  for (const r of storedPlans(store)) records.set(r.id, r);
+  const merged = store.db
+    .prepare("SELECT source_id FROM bill_plan_merges WHERE env=?")
+    .all(store.env) as { source_id: string }[];
+  for (const r of merged) records.delete(r.source_id);
+  return [...records.values()];
 }
 export function paymentEvidence(store: Store) {
   return new Map(
@@ -160,10 +170,8 @@ export function planState(
   month = new Date().toISOString().slice(0, 7),
 ) {
   const actuals = paymentEvidence(store);
-  const saved = storedPlans(store),
-    byId = new Map(drafts.map((r) => [r.id, r]));
-  for (const r of saved) byId.set(r.id, r);
-  const records = [...byId.values()].map((r) => {
+  const saved = storedPlans(store);
+  const records = activePlanRecords(store, drafts).map((r) => {
     const duplicatePlans = saved
       .filter(
         (s) =>
@@ -215,9 +223,16 @@ export function savePlan(
   store: Store,
   input: any,
   observed: { name: string }[],
+  retainedPlans: Plan[] = [],
 ) {
   if (!input || typeof input !== "object") throw Error("Invalid bill details.");
   const r: Plan = { ...input };
+  if (
+    store.db
+      .prepare("SELECT 1 FROM bill_plan_merges WHERE env=? AND source_id=?")
+      .get(store.env, typeof r.id === "string" ? r.id : "")
+  )
+    throw Error("This bill has been merged. Reload to see the remaining bill.");
   if (
     typeof r.id !== "string" ||
     !r.id ||
@@ -280,11 +295,14 @@ export function savePlan(
   )
     throw Error("Invalid payment cycles.");
   const previous = storedPlans(store).find((p) => p.id === r.id);
+  const retained = [previous, ...retainedPlans].filter(
+    (p): p is Plan => !!p && p.currency === r.currency,
+  );
   if (
     r.creditAccountId !== undefined &&
     (typeof r.creditAccountId !== "string" ||
       (r.creditAccountId &&
-        previous?.creditAccountId !== r.creditAccountId &&
+        !retained.some((p) => p.creditAccountId === r.creditAccountId) &&
         !store
           .accountList()
           .some(
@@ -324,10 +342,12 @@ export function savePlan(
       const t = actuals.get(p.actualTransactionKey);
       const unchangedMissing =
         !t &&
-        previous?.payments?.some(
-          (old) =>
-            old.actualTransactionKey === p.actualTransactionKey &&
-            old.date === p.date,
+        retained.some((plan) =>
+          plan.payments?.some(
+            (old) =>
+              old.actualTransactionKey === p.actualTransactionKey &&
+              old.date === p.date,
+          ),
         );
       if (
         !unchangedMissing &&
@@ -372,12 +392,19 @@ export function savePlan(
     const others = storedPlans(store).filter(
       (s) => s.id !== r.id && s.status === "confirmed",
     );
-    if (
-      others.some((s) => payee(s.name) === payee(r.name)) &&
-      r.acknowledgeDuplicate !== true
-    )
-      throw Error(
-        "Possible duplicate: acknowledge that this is a separate commitment before confirming.",
+    const duplicates = others.filter((s) => payee(s.name) === payee(r.name));
+    if (duplicates.length && r.acknowledgeDuplicate !== true)
+      throw Object.assign(
+        Error(
+          "Possible duplicate: merge with the existing bill, or acknowledge a separate commitment.",
+        ),
+        {
+          duplicatePlans: duplicates.map((s) => ({
+            id: s.id,
+            name: s.name,
+            accountName: s.accountName,
+          })),
+        },
       );
   }
   // Store only the supported fields. Source provenance is supplied by the server route.
@@ -404,6 +431,7 @@ export function savePlan(
         : {}),
     })),
     ...(r.source ? { source: r.source } : {}),
+    ...(r.sources ? { sources: r.sources } : {}),
     acknowledgeDuplicate: r.acknowledgeDuplicate === true,
   };
   store.db
@@ -441,10 +469,19 @@ export function installBillPlanApi(app: Express, store: Store, drafts: Plan[]) {
           error:
             "This import row is no longer available. Reload and try again.",
         });
-      savePlan(store, { ...req.body, source: original.source }, observed());
+      savePlan(
+        store,
+        { ...req.body, source: original.source, sources: original.sources },
+        observed(),
+      );
       res.json({ ok: true });
     } catch (e: any) {
-      res.status(400).json({ error: e.message });
+      res
+        .status(400)
+        .json({
+          error: e.message,
+          ...(e.duplicatePlans ? { duplicatePlans: e.duplicatePlans } : {}),
+        });
     }
   });
 }

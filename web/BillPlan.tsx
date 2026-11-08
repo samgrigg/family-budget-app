@@ -1,3 +1,5 @@
+import BillMerge from "./BillMerge";
+import { billPlanSubmission } from "./billPlanSubmission";
 import BillClassificationFields from "./BillClassificationFields";
 import PaymentFields from "./PaymentFields";
 import { validMonth } from "../shared/billAmounts";
@@ -25,7 +27,9 @@ export default function BillPlan({
   const [saveError, setSaveError] = useState<{
     id: string;
     message: string;
+    duplicatePlans?: any[];
   } | null>(null);
+  const [formVersions, setFormVersions] = useState<Record<string, number>>({});
   const [month, setMonth] = useState(() => {
     const today = new Date();
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
@@ -87,50 +91,7 @@ export default function BillPlan({
     setNotice("");
     setSaveError(null);
     try {
-      const paymentDate = String(values.get("paymentDate") ?? "");
-      const paymentAmount = String(values.get("paymentAmount") ?? "");
-      const actualTransactionKey = String(
-        values.get("actualTransactionKey") ?? "",
-      );
-      if (
-        (paymentDate || paymentAmount || actualTransactionKey) &&
-        (!paymentDate || !paymentAmount || paymentDate.slice(0, 7) !== month)
-      )
-        throw Error(
-          "Enter a payment date in the selected month and its known amount, or clear all payment fields.",
-        );
-      const payments = [
-        ...(row.payments ?? []).filter(
-          (p: any) => p.date.slice(0, 7) !== month,
-        ),
-        ...(paymentDate
-          ? [
-              {
-                date: paymentDate,
-                amount: paymentAmount,
-                ...(actualTransactionKey ? { actualTransactionKey } : {}),
-              },
-            ]
-          : []),
-      ];
-      await api("/bill-plan", {
-        ...row,
-        name: values.get("name"),
-        accountName: values.get("accountName"),
-        amount: values.get("amount"),
-        amountMode: values.get("amountMode"),
-        planningEstimate: values.get("planningEstimate"),
-        expenseType: values.get("expenseType"),
-        creditAccountId: values.get("creditAccountId") ?? "",
-        payments,
-        currency: values.get("currency"),
-        frequency: values.get("frequency"),
-        day: values.get("day") ? Number(values.get("day")) : null,
-        notes: values.get("notes"),
-        kind: values.get("kind"),
-        acknowledgeDuplicate: values.get("duplicate") === "on",
-        status,
-      });
+      await api("/bill-plan", billPlanSubmission(row, values, month, status));
       await reload();
       setAdvanceFrom(row.id);
       setNotice(
@@ -142,11 +103,19 @@ export default function BillPlan({
       );
     } catch (e: any) {
       void reload().catch(() => {});
-      setSaveError({ id: row.id, message: e.message });
+      setSaveError({
+        id: row.id,
+        message: e.message,
+        duplicatePlans: e.duplicatePlans,
+      });
     } finally {
       setBusy(false);
     }
   }
+  const duplicatePlansFor = (row: any) =>
+    saveError && saveError.id === row.id && saveError.duplicatePlans
+      ? saveError.duplicatePlans
+      : (row.duplicatePlans ?? []);
   const remaining =
     data?.records.filter((r: any) => r.status === "review").length ?? 0;
   return (
@@ -321,6 +290,23 @@ export default function BillPlan({
                         ? ` · Formula: =${r.source.formula}`
                         : ""}
                     </p>
+                    {r.sources?.length > 1 && (
+                      <details>
+                        <summary>
+                          Worksheet sources ({r.sources.length})
+                        </summary>
+                        <ul>
+                          {r.sources.map((source: any, i: number) => (
+                            <li key={i}>
+                              {source.cell} · Original value: {source.value}
+                              {source.formula
+                                ? ` · Formula: =${source.formula}`
+                                : ""}
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
                     {r.kind === "transfer" && (
                       <p>
                         Auto-transfer: excluded from bill totals. Keep this as a
@@ -354,14 +340,14 @@ export default function BillPlan({
                     {!r.accountName && (
                       <p>No payment account supplied in the worksheet.</p>
                     )}
-                    {r.possibleDuplicate && (
+                    {duplicatePlansFor(r).length > 0 && (
                       <div>
                         <p>
                           Possible duplicate: another planned bill is already
                           confirmed.
                         </p>
                         <ul>
-                          {r.duplicatePlans?.map((p: any) => (
+                          {duplicatePlansFor(r).map((p: any) => (
                             <li key={p.id}>
                               {p.name} · {p.accountName}
                             </li>
@@ -377,7 +363,7 @@ export default function BillPlan({
                       </p>
                     )}
                     <form
-                      key={`${r.id}:${month}`}
+                      key={`${r.id}:${month}:${formVersions[r.id] ?? 0}`}
                       className="plan-form"
                       onSubmit={(e) => {
                         e.preventDefault();
@@ -508,7 +494,7 @@ export default function BillPlan({
                           {saveError.message}
                         </p>
                       )}
-                      {(r.possibleDuplicate ||
+                      {(duplicatePlansFor(r).length > 0 ||
                         r.acknowledgeDuplicate ||
                         (saveError &&
                           saveError.id === r.id &&
@@ -526,6 +512,32 @@ export default function BillPlan({
                             separate commitment.
                           </span>
                         </label>
+                      )}
+                      {duplicatePlansFor(r).length > 0 && (
+                        <BillMerge
+                          row={{ ...r, duplicatePlans: duplicatePlansFor(r) }}
+                          api={api}
+                          disabled={busy}
+                          readEdits={(form) =>
+                            billPlanSubmission(
+                              r,
+                              new FormData(form),
+                              month,
+                              "review",
+                            )
+                          }
+                          onMerged={async (targetId) => {
+                            await reload();
+                            setFormVersions((v) => ({
+                              ...v,
+                              [targetId]: (v[targetId] ?? 0) + 1,
+                            }));
+                            setAdvanceFrom(r.id);
+                            setNotice(
+                              "Duplicate merged. One confirmed bill remains.",
+                            );
+                          }}
+                        />
                       )}
                       <div className="actions">
                         <button disabled={busy}>Confirm bill</button>
