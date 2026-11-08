@@ -39,7 +39,7 @@ export default function BillsOverview({
     <details className="overview-bill">
       <summary>
         <span className="overview-bill-name">
-          {b.name}
+          {income && b.employer ? b.employer : b.name}
           {timing && <span className="overview-timing">{timing}</span>}
         </span>
         <strong>{money(b.typical, b.currency)}</strong>
@@ -58,6 +58,13 @@ export default function BillsOverview({
           {income ? "Deposited into" : "From"}{" "}
           {b.transactions[0]?.fromAccount || b.accountName}
         </p>
+        {income && (
+          <p>
+            {b.employer
+              ? `Employer / payroll sender: ${b.employer} (inferred from deposit descriptions)`
+              : "Employer not identified from deposit descriptions."}
+          </p>
+        )}
         <p>Description: {b.transactions.at(-1)?.toPayee || b.name}</p>
         <details>
           <summary>

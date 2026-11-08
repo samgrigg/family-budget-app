@@ -1,6 +1,35 @@
 import { candidates, groupKey, summarize, type Entry } from "./bills";
 import { confirmedTransactionKeys, transactionKey } from "./transfers";
 import type { Store } from "./store";
+// Statement text identifies a payroll sender, not verified employment.
+export function identifyEmployer(description: string): string | null {
+  if (!/\b(payroll\w*|salary|salaries|paycheck)\b/i.test(description))
+    return null;
+  const ach = description.match(/\bCOMPANY:\s*(.+?)\s+ENTRY:/i)?.[1];
+  const plain = description.match(
+    /^(.+?)\s+[-–:]?\s*\b(?:payroll|salary|paycheck)\b/i,
+  )?.[1];
+  const name = (ach ?? plain ?? "").replace(/\s+/g, " ").trim();
+  if (
+    !name ||
+    /^(employer|company|ach|deposit|direct deposit|adp|paychex|gusto|paylocity|workday|paycom|paycor)(?:\s|$)/i.test(
+      name,
+    )
+  )
+    return null;
+  return name;
+}
+export function employerForHistory(transactions: Entry[]): string | null {
+  const names = [
+    ...new Set(
+      transactions
+        .map((t) => identifyEmployer(t.name))
+        .filter((name): name is string => !!name)
+        .map((name) => name.toUpperCase()),
+    ),
+  ];
+  return names.length === 1 ? names[0] : null;
+}
 export function incomeState(store: Store, now = new Date()) {
   store.db.exec(
     "CREATE TABLE IF NOT EXISTS income_decisions(env TEXT,key TEXT,name TEXT,status TEXT,PRIMARY KEY(env,key))",
@@ -41,6 +70,7 @@ export function incomeState(store: Store, now = new Date()) {
     .all(store.env) as any[];
   const enrich = (b: any) => ({
     ...b,
+    employer: employerForHistory(b.transactions),
     transactions: b.transactions.map((t: Entry) => ({
       ...t,
       fromAccount: label(t),

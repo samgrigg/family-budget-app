@@ -56,7 +56,14 @@ export default function IncomeReview({ data, api, reload }: any) {
       {!data[view].length && <p>No sources in this view.</p>}
       {data[view].map((b: any) => (
         <article className="bill" key={b.key}>
-          <h3>{b.name}</h3>
+          <h3>{b.employer || b.name}</h3>
+          {b.transactions && (
+            <p>
+              {b.employer
+                ? `Employer / payroll sender: ${b.employer} (inferred)`
+                : "Employer not identified from deposit descriptions."}
+            </p>
+          )}
           {b.typical != null && (
             <>
               <p>

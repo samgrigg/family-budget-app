@@ -62,3 +62,32 @@ it("excludes refunds, loan proceeds, card credits, pending entries and paired tr
   expect(incomeState(s, new Date("2026-11-07")).suggestions).toHaveLength(0);
   s.db.close();
 });
+
+import { identifyEmployer, employerForHistory } from "../server/income";
+it("identifies payroll senders without treating arbitrary merchants or processors as employers", () => {
+  expect(
+    identifyEmployer(
+      "ACH Deposit COMPANY: EXAMPLE SCHOOL DIST ENTRY: PAYROLL PAYROLL Jane Doe",
+    ),
+  ).toBe("EXAMPLE SCHOOL DIST");
+  expect(identifyEmployer("Example Inc Payroll")).toBe("Example Inc");
+  expect(identifyEmployer("Adobe")).toBeNull();
+  expect(
+    identifyEmployer("ACH Deposit COMPANY: ADP ENTRY: PAYROLL"),
+  ).toBeNull();
+  expect(
+    identifyEmployer("ACH Deposit COMPANY: Example LLC ENTRY: EARNINGS"),
+  ).toBeNull();
+  expect(
+    employerForHistory([
+      { name: "Alpha Inc Payroll" },
+      { name: "Beta Inc Payroll" },
+    ] as any),
+  ).toBeNull();
+  expect(
+    employerForHistory([
+      { name: "Example Inc Payroll" },
+      { name: "EXAMPLE INC Payroll" },
+    ] as any),
+  ).toBe("EXAMPLE INC");
+});
