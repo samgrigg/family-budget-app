@@ -3,6 +3,7 @@ import { incomeState } from "./income";
 import { transferState, transactionKey } from "./transfers";
 import { installBills, billState } from "./bills";
 import express from "express";
+import { installAccountApi } from "./accounts-api";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import type { Store } from "./store";
 import type { Provider } from "./plaid";
@@ -278,7 +279,7 @@ export function createApp(
           return res.status(502).json({
             ...state(),
             error:
-              "Connection could not be saved or revoked. Keep this app running and use Disconnect & delete to retry. If restarting is necessary, revoke access through your institution or Plaid Portal first.",
+              "Connection could not be saved or revoked. Keep this app running and use Disconnect to retry. If restarting is necessary, revoke access through your institution or Plaid Portal first.",
           });
         }
       }
@@ -305,60 +306,86 @@ export function createApp(
     store.nameInstitution(req.params.id, name.trim(), true);
     res.json(state());
   });
-  app.post("/api/connections/:id/sync", async (req, res, next) => {
-    try {
-      await exclusive(req.params.id, async () => {
-        const token = store.token(req.params.id);
-        const { accounts, item } = await provider.call("/accounts/get", {
-          access_token: token,
-        });
-        if (
-          item?.institution_id &&
-          !store.list().find((c) => c.id === req.params.id)?.institution_name
-        ) {
-          try {
-            const { institution } = await provider.call(
-              "/institutions/get_by_id",
-              { institution_id: item.institution_id, country_codes: ["US"] },
-            );
-            if (institution?.name)
-              store.nameInstitution(req.params.id, institution.name);
-          } catch {
-            /* Institution naming must not block transaction imports. */
+  app.post(
+    ["/api/connections/:id/sync", "/api/data-sources/:id/sync"],
+    async (req, res, next) => {
+      try {
+        const id = String(req.params.id);
+        await exclusive(id, async () => {
+          const token = store.token(id);
+          const { accounts, item } = await provider.call("/accounts/get", {
+            access_token: token,
+          });
+          if (
+            item?.institution_id &&
+            !store.list().find((c) => c.id === id)?.institution_name
+          ) {
+            try {
+              const { institution } = await provider.call(
+                "/institutions/get_by_id",
+                { institution_id: item.institution_id, country_codes: ["US"] },
+              );
+              if (institution?.name)
+                store.nameInstitution(id, institution.name);
+            } catch {
+              /* Institution naming must not block transaction imports. */
+            }
           }
-        }
-        await syncConnection(
-          store,
-          req.params.id,
-          (cursor) =>
-            provider.call("/transactions/sync", {
-              access_token: token,
-              cursor,
-              count: 500,
-            }),
-          accounts,
-        );
-      });
-      res.json(state());
-    } catch (e) {
-      next(e);
-    }
-  });
-  app.post("/api/connections/:id/disconnect", async (req, res, next) => {
-    try {
-      await exclusive(req.params.id, async () => {
-        await provider.call("/item/remove", {
-          access_token:
-            recovery.get(req.params.id) ?? store.token(req.params.id),
+          await syncConnection(
+            store,
+            id,
+            (cursor) =>
+              provider.call("/transactions/sync", {
+                access_token: token,
+                cursor,
+                count: 500,
+              }),
+            accounts,
+          );
         });
-        store.remove(req.params.id);
-        recovery.delete(req.params.id);
-      });
-      res.json(state());
-    } catch (e) {
-      next(e);
-    }
-  });
+        res.json(state());
+      } catch (e) {
+        next(e);
+      }
+    },
+  );
+  installAccountApi(app, store);
+  // Compatibility alias: disconnect now preserves all local history.
+  app.post(
+    ["/api/connections/:id/disconnect", "/api/data-sources/:id/disconnect"],
+    async (req, res, next) => {
+      const id = String(req.params.id);
+      if (!recovery.has(id) && !store.list().some((c) => c.id === id))
+        return res.status(404).json({ error: "Source not found." });
+      try {
+        await exclusive(id, async () => {
+          const saved = store.list().some((c) => c.id === id);
+          if (
+            saved &&
+            store.connection(id).status === "historical" &&
+            !recovery.has(id)
+          )
+            return;
+          try {
+            await provider.call("/item/remove", {
+              access_token: recovery.get(id) ?? store.token(id),
+            });
+          } catch (error: any) {
+            // A previous successful removal followed by a local write failure is retryable.
+            if (error.code !== "ITEM_NOT_FOUND") {
+              if (saved) store.sourceStatus(id, "revoke_required");
+              throw error;
+            }
+          }
+          if (saved) store.sourceStatus(id, "historical", true);
+          recovery.delete(id);
+        });
+        res.json(state());
+      } catch (e) {
+        next(e);
+      }
+    },
+  );
   app.use("/api", (_req, res) =>
     res.status(404).json({ error: "Unknown API route" }),
   );
@@ -374,11 +401,13 @@ export function createApp(
         NOT_CONFIGURED: "Add your Plaid credentials to .env and restart.",
         ITEM_LOGIN_REQUIRED:
           "Your institution needs renewed authorization. Disconnect and connect again.",
+        DISCONNECTED:
+          "This source is disconnected. Its saved history remains available.",
         BUSY: "An operation is already running. Please wait.",
         INVALID_CREDENTIALS:
           "Check the Plaid credentials and environment in .env.",
       };
-      res.status(code === "BUSY" ? 409 : 502).json({
+      res.status(["BUSY", "DISCONNECTED"].includes(code) ? 409 : 502).json({
         error:
           messages[code] ??
           "The request could not finish. Retry; if disconnect failed, the connection remains saved so you can revoke access.",

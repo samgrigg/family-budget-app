@@ -11,7 +11,12 @@ export async function syncConnection(
   if (set.has(id)) throw Error("Import already running");
   set.add(id);
   try {
-    const start = store.connection(id).cursor ?? undefined;
+    const connection = store.connection(id);
+    if (!connection.token || connection.status === "historical")
+      throw Object.assign(Error("Source is disconnected"), {
+        code: "DISCONNECTED",
+      });
+    const start = connection.cursor ?? undefined;
     for (let attempt = 0; attempt < 3; attempt++) {
       let cursor = start;
       const pages: any[] = [];

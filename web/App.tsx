@@ -340,12 +340,14 @@ export default function App() {
                   {c.label && c.institution_name && <p>{c.institution_name}</p>}
                   <p>
                     {c.status === "revoke_required"
-                      ? "Not saved · retry Disconnect & delete before restarting"
-                      : c.status === "ready"
-                        ? "History imported"
-                        : c.status === "history_pending"
-                          ? "Recent activity imported · older history pending"
-                          : "Waiting for institution data"}
+                      ? "Access revocation needs retry · use Disconnect before restarting"
+                      : c.status === "historical"
+                        ? "Disconnected · saved history is no longer updated"
+                        : c.status === "ready"
+                          ? "History imported"
+                          : c.status === "history_pending"
+                            ? "Recent activity imported · older history pending"
+                            : "Waiting for institution data"}
                     {c.last_sync &&
                       ` · Last checked ${new Date(c.last_sync).toLocaleString()}`}
                   </p>
@@ -414,7 +416,7 @@ export default function App() {
                 <div className="actions">
                   <button
                     className="secondary"
-                    disabled={busy}
+                    disabled={busy || c.status === "historical"}
                     onClick={() =>
                       void run(async () => {
                         await api(
@@ -432,7 +434,7 @@ export default function App() {
                     onClick={() => {
                       if (
                         confirm(
-                          `Disconnect ${c.display_name || "this institution"} and delete its local accounts and transactions? This cannot be undone.`,
+                          `Disconnect ${c.display_name || "this institution"}? Saved accounts and transaction history will remain available; new imports will stop.`,
                         )
                       )
                         void run(async () => {
@@ -444,7 +446,7 @@ export default function App() {
                         });
                     }}
                   >
-                    Disconnect & delete
+                    Disconnect
                   </button>
                 </div>
               </div>

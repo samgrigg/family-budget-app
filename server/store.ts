@@ -105,7 +105,12 @@ export class Store {
     return row;
   }
   token(id: string) {
-    return unseal(this.connection(id).token, this.key);
+    const row = this.connection(id);
+    if (!row.token || row.status === "historical")
+      throw Object.assign(Error("Source is disconnected"), {
+        code: "DISCONNECTED",
+      });
+    return unseal(row.token, this.key);
   }
   list(): any[] {
     return this.db
@@ -164,6 +169,10 @@ export class Store {
   }
   commit(id: string, pages: any[], cursor: string, accounts: any[]) {
     this.db.transaction(() => {
+      if (this.connection(id).status === "historical")
+        throw Object.assign(Error("Source is disconnected"), {
+          code: "DISCONNECTED",
+        });
       this.accounts(id, accounts);
       const put = this.db.prepare(
         "INSERT OR REPLACE INTO transactions VALUES(?,?,?,?,?,?,?,?,?)",
@@ -222,6 +231,75 @@ export class Store {
           "UPDATE data_sources SET status=(SELECT status FROM connections WHERE env=? AND id=?),last_checked=(SELECT last_sync FROM connections WHERE env=? AND id=?) WHERE env=? AND id=?",
         )
         .run(this.env, id, this.env, id, this.env, id);
+    })();
+  }
+  sourceStatus(id: string, status: string, eraseToken = false) {
+    this.db.transaction(() => {
+      this.db
+        .prepare(
+          `UPDATE connections SET status=?${eraseToken ? ",token=NULL" : ""} WHERE env=? AND id=?`,
+        )
+        .run(status, this.env, id);
+      this.db
+        .prepare("UPDATE data_sources SET status=? WHERE env=? AND id=?")
+        .run(status, this.env, id);
+    })();
+  }
+  deleteAccount(id: string) {
+    this.db.transaction(() => {
+      const mappings = this.db
+        .prepare(
+          "SELECT s.*,d.status,c.token FROM source_accounts s LEFT JOIN data_sources d ON d.env=s.env AND d.id=s.source_id LEFT JOIN connections c ON c.env=s.env AND c.id=s.source_id WHERE s.env=? AND s.account_id=?",
+        )
+        .all(this.env, id) as any[];
+      // Unknown/retry authorization is unsafe: only positively historical sources qualify.
+      if (mappings.some((m) => m.status !== "historical" || m.token))
+        throw Object.assign(
+          Error(
+            "Disconnect every source for this account before deleting its history.",
+          ),
+          { code: "SOURCE_AUTHORIZED" },
+        );
+      for (const m of mappings) {
+        this.db
+          .prepare(
+            "DELETE FROM transaction_metadata WHERE env=? AND source_id=? AND transaction_id IN (SELECT id FROM transactions WHERE env=? AND connection=? AND account=?)",
+          )
+          .run(
+            this.env,
+            m.source_id,
+            this.env,
+            m.source_id,
+            m.provider_account_id,
+          );
+        this.db
+          .prepare(
+            "DELETE FROM transactions WHERE env=? AND connection=? AND account=?",
+          )
+          .run(this.env, m.source_id, m.provider_account_id);
+        for (const [table, column] of [
+          ["accounts", "id"],
+          ["account_preferences", "account"],
+          ["account_types", "account"],
+        ])
+          this.db
+            .prepare(
+              `DELETE FROM ${table} WHERE env=? AND connection=? AND ${column}=?`,
+            )
+            .run(this.env, m.source_id, m.provider_account_id);
+        this.db
+          .prepare(
+            "DELETE FROM source_account_metadata WHERE env=? AND source_id=? AND account_id=?",
+          )
+          .run(this.env, m.source_id, m.provider_account_id);
+      }
+      for (const table of ["source_accounts", "account_id_aliases"])
+        this.db
+          .prepare(`DELETE FROM ${table} WHERE env=? AND account_id=?`)
+          .run(this.env, id);
+      this.db
+        .prepare("DELETE FROM app_accounts WHERE env=? AND id=?")
+        .run(this.env, id);
     })();
   }
   remove(id: string) {
