@@ -284,6 +284,7 @@ export default function MoneyFlow({ api }: any) {
                 <button
                   type="button"
                   className="secondary"
+                  disabled={!preferenceEnvironment}
                   onClick={() => changeHidden([])}
                 >
                   Show all
@@ -291,6 +292,7 @@ export default function MoneyFlow({ api }: any) {
                 <button
                   type="button"
                   className="secondary"
+                  disabled={!preferenceEnvironment}
                   onClick={() =>
                     changeHidden(network.accounts.map((a) => a.id))
                   }

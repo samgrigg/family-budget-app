@@ -235,6 +235,8 @@ export default function App() {
       )}
       {page === "accounts" && (
         <Accounts
+          key={route}
+          revision={JSON.stringify([state?.connections, state?.accounts])}
           api={api}
           route={route}
           onRefresh={() => api("/state")}

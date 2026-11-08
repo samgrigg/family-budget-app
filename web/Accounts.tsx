@@ -1,4 +1,11 @@
-import { useEffect, useState } from "react";
+import {
+  createRequestGate,
+  loadAccountView,
+  accountAmount,
+  appendAccountPage,
+  saveAccountPreferences,
+} from "./accountRequests";
+import { useEffect, useRef, useState } from "react";
 export default function Accounts({
   api,
   route,
@@ -7,6 +14,7 @@ export default function Accounts({
   configured,
   busy,
   externalError,
+  revision,
 }: any) {
   const [index, setIndex] = useState<any>(null),
     [detail, setDetail] = useState<any>(null),
@@ -17,19 +25,25 @@ export default function Accounts({
   const id = route.startsWith("#accounts/")
     ? decodeURIComponent(route.slice(10))
     : "";
+  const gate = useRef(createRequestGate());
   async function load() {
+    if (!gate.current.active()) return;
     setError("");
-    try {
-      setIndex(await api("/accounts"));
-      setDetail(id ? await api(`/accounts/${encodeURIComponent(id)}`) : null);
-    } catch (e: any) {
-      setError(e.message);
-    }
+    await loadAccountView(
+      api,
+      id,
+      gate.current,
+      (view) => {
+        setIndex(view.index);
+        setDetail(view.detail);
+      },
+      (e) => setError(e.message),
+    );
   }
+  useEffect(() => () => gate.current.dispose(), []);
   useEffect(() => {
-    setDetail(null);
     void load();
-  }, [route]);
+  }, [revision]);
   async function run(fn: () => Promise<any>, refresh = true) {
     setWorking(true);
     setError("");
@@ -37,12 +51,12 @@ export default function Accounts({
       await fn();
       if (refresh) {
         await onRefresh();
-        await load();
+        if (gate.current.active()) await load();
       }
     } catch (e: any) {
-      setError(e.message);
+      if (gate.current.active()) setError(e.message);
     } finally {
-      setWorking(false);
+      if (gate.current.active()) setWorking(false);
     }
   }
   const disabled = working || busy;
@@ -59,7 +73,7 @@ export default function Accounts({
         <label>
           {label}
           <input
-            key={value}
+            key={path}
             name="name"
             defaultValue={value}
             required
@@ -248,7 +262,7 @@ export default function Accounts({
           ))}
         </>
       )}
-      {detail && !access && id && (
+      {detail && detail.account.id === id && !access && id && (
         <>
           <h2>
             {detail.account.name}
@@ -264,19 +278,26 @@ export default function Accounts({
           <form
             onSubmit={(e) => {
               e.preventDefault();
+              if (!gate.current.active() || detail.account.id !== id) return;
               const f = new FormData(e.currentTarget);
               void run(() =>
-                api(`/accounts/${encodeURIComponent(id)}/preferences`, {
-                  name: f.get("name"),
-                  included: f.has("included"),
-                }),
+                saveAccountPreferences(
+                  api,
+                  id,
+                  detail.account.id,
+                  gate.current,
+                  {
+                    name: f.get("name"),
+                    included: f.has("included"),
+                  },
+                ),
               );
             }}
           >
             <label>
               Account name
               <input
-                key={detail.account.name}
+                key={id}
                 name="name"
                 defaultValue={detail.account.name}
                 required
@@ -288,7 +309,7 @@ export default function Accounts({
                 type="checkbox"
                 name="included"
                 defaultChecked={detail.account.included}
-                key={String(detail.account.included)}
+                key={id}
               />{" "}
               Include in budgeting
             </label>
@@ -326,9 +347,7 @@ export default function Accounts({
                     {t.pending ? " · Pending" : ""}
                   </p>
                 </div>
-                <span>
-                  {t.currency} {t.amount}
-                </span>
+                <span>{accountAmount(t.currency, t.amount)}</span>
               </li>
             ))}
           </ul>
@@ -337,18 +356,10 @@ export default function Accounts({
             <button
               disabled={disabled}
               onClick={() =>
-                void run(async () => {
-                  const next = await api(
-                    `/accounts/${encodeURIComponent(id)}?cursor=${encodeURIComponent(detail.nextCursor)}`,
-                  );
-                  setDetail({
-                    ...next,
-                    transactions: [
-                      ...detail.transactions,
-                      ...next.transactions,
-                    ],
-                  });
-                }, false)
+                void run(
+                  () => appendAccountPage(api, detail, gate.current, setDetail),
+                  false,
+                )
               }
             >
               Load more transactions
@@ -376,7 +387,7 @@ export default function Accounts({
                   await api(`/accounts/${encodeURIComponent(id)}/delete`, {
                     confirm: true,
                   });
-                  location.hash = "accounts";
+                  if (gate.current.active()) location.hash = "accounts";
                 });
             }}
           >
