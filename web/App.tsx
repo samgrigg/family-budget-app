@@ -507,7 +507,11 @@ export default function App() {
                             "amount " + (Number(t.amount) < 0 ? "credit" : "")
                           }
                         >
-                          {t.currency ? `${t.currency} ` : ""}
+                          {t.currency === "USD"
+                            ? "$"
+                            : t.currency
+                              ? `${t.currency} `
+                              : ""}
                           {t.amount}
                         </td>
                       </tr>

@@ -29,7 +29,7 @@ export default function BillsOverview({
   const money = (amount: number | null, currency: string) =>
     amount === null
       ? "Amount unavailable"
-      : `${currency || "Unknown currency"} ${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      : `${currency === "USD" ? "$" : `${currency || "Unknown currency"} `}${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const billDetails = (b: any, timing?: string) => (
     <details className="overview-bill">
       <summary>

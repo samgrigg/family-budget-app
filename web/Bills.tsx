@@ -45,7 +45,7 @@ export default function Bills({
   const money = (value: number | null, currency: string) =>
     value === null
       ? "No current history"
-      : `${currency} ${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      : `${currency === "USD" ? "$" : `${currency} `}${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const filtered =
     data &&
     Object.fromEntries(

@@ -46,7 +46,7 @@ export default function Transfers({ data, accounts, api, onError }: any) {
       {data[view].map((p: any) => (
         <article className="bill" key={p.key}>
           <h3>
-            {p.out.currency}{" "}
+            {p.out.currency === "USD" ? "$" : `${p.out.currency} `}
             {Number(p.out.amount).toLocaleString(undefined, {
               minimumFractionDigits: 2,
             })}
