@@ -1,3 +1,5 @@
+import { transferState, transactionKey } from "./transfers";
+import { installBills, billState } from "./bills";
 import express from "express";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import type { Store } from "./store";
@@ -10,6 +12,7 @@ export function createApp(
   redirectUri?: string,
 ) {
   const app = express();
+  installBills(store);
   app.disable("x-powered-by");
   const sessions = new Map<string, { csrf: string; expires: number }>();
   const active = new Set<string>();
@@ -68,22 +71,124 @@ export function createApp(
     res.locals.csrf = session?.csrf;
     next();
   });
-  const state = () => ({
-    environment: store.env,
-    configured: provider.configured,
-    connections: [
-      ...store.list(),
-      ...Array.from(recovery.keys(), (id) => ({
-        id,
-        status: "revoke_required",
-        last_sync: null,
-      })),
-    ],
-    transactions: store.transactions(),
+  const state = () => {
+    const transfers = transferState(store);
+    const confirmed = new Set(
+      transfers.confirmed.flatMap((p) => [
+        transactionKey(p.out),
+        transactionKey(p.into),
+      ]),
+    );
+    return {
+      environment: store.env,
+      configured: provider.configured,
+      connections: [
+        ...store.list(),
+        ...Array.from(recovery.keys(), (id) => ({
+          id,
+          status: "revoke_required",
+          last_sync: null,
+        })),
+      ],
+      accounts: store.accountList(),
+      transfers,
+      transactions: store
+        .transactions()
+        .map((t) => ({
+          ...t,
+          internal_transfer: confirmed.has(transactionKey(t)),
+        })),
+    };
+  };
+  app.post("/api/transfers", (req, res) => {
+    const { key, status } = req.body ?? {};
+    if (
+      typeof key !== "string" ||
+      !["confirmed", "rejected", "review"].includes(status)
+    )
+      return res.status(400).json({ error: "Invalid transfer decision." });
+    const current = transferState(store);
+    if (
+      ![...current.confirmed, ...current.review, ...current.rejected].some(
+        (p) => p.key === key,
+      )
+    )
+      return res
+        .status(409)
+        .json({ error: "This match changed. Reload and review it again." });
+    const pair = [...current.confirmed, ...current.review, ...current.rejected].find(p => p.key === key)!;
+    if (status === "confirmed" && current.confirmed.some(p => p.key !== key && [p.out,p.into].some(t => [pair.out,pair.into].some(other => transactionKey(t) === transactionKey(other)))))
+      return res.status(409).json({ error: "A transaction already belongs to another transfer. Undo that match first." });
+    if (status === "review")
+      store.db
+        .prepare("DELETE FROM transfer_decisions WHERE env=? AND key=?")
+        .run(store.env, key);
+    else
+      store.db
+        .prepare(
+          "INSERT INTO transfer_decisions VALUES(?,?,?) ON CONFLICT(env,key) DO UPDATE SET status=excluded.status",
+        )
+        .run(store.env, key, status);
+    res.json(state());
   });
   app.get("/api/state", (_req, res) =>
     res.json({ ...state(), csrf: res.locals.csrf }),
   );
+  app.post("/api/accounts/visibility", (req, res) => {
+    const { connection, account, hidden } = req.body ?? {};
+    if (
+      typeof connection !== "string" ||
+      typeof account !== "string" ||
+      typeof hidden !== "boolean"
+    )
+      return res.status(400).json({ error: "Invalid account details." });
+    if (!store.setAccountHidden(connection, account, hidden))
+      return res.status(404).json({ error: "Account not found." });
+    res.json(state());
+  });
+  app.get("/api/bills", (req, res) => {
+    const months = Number(req.query.months ?? 6);
+    if (![3, 6, 12].includes(months))
+      return res.status(400).json({ error: "Choose 3, 6, or 12 months." });
+    res.json(billState(store, months));
+  });
+  app.post("/api/bills", (req, res) => {
+    const { key, name, status, excluded = [] } = req.body ?? {};
+    if (
+      typeof key !== "string" ||
+      typeof name !== "string" ||
+      !name.trim() ||
+      name.length > 120 ||
+      !["saved", "dismissed", "review"].includes(status) ||
+      !Array.isArray(excluded) ||
+      excluded.some((v: any) => typeof v !== "string")
+    )
+      return res.status(400).json({ error: "Invalid bill details." });
+    const months = Number(req.body.months ?? 6);
+    if (![3, 6, 12].includes(months))
+      return res.status(400).json({ error: "Choose 3, 6, or 12 months." });
+    const current = billState(store, months);
+    const known = [
+      ...current.suggestions,
+      ...current.saved,
+      ...current.dismissed,
+    ].some((b) => b.key === key);
+    if (!known)
+      return res.status(400).json({
+        error: "This suggestion is no longer available. Refresh and try again.",
+      });
+    if (status === "review")
+      store.db
+        .prepare("DELETE FROM bills WHERE env=? AND key=?")
+        .run(store.env, key);
+    else
+      store.db
+        .prepare(
+          "INSERT INTO bills(env,key,name,status,excluded) VALUES(?,?,?,?,?) ON CONFLICT(env,key) DO UPDATE SET name=excluded.name,status=excluded.status,excluded=excluded.excluded",
+        )
+        .run(store.env, key, name.trim(), status, JSON.stringify(excluded));
+    res.json({ ok: true });
+  });
   app.post("/api/link-token", async (_req, res, next) => {
     try {
       const r = await provider.call("/link/token/create", {
@@ -143,13 +248,39 @@ export function createApp(
       active.delete(id);
     }
   }
+  app.post("/api/connections/:id/name", (req, res) => {
+    const name = req.body?.name;
+    if (typeof name !== "string" || !name.trim() || name.trim().length > 120)
+      return res
+        .status(400)
+        .json({ error: "Enter a name between 1 and 120 characters." });
+    if (!store.list().some((c) => c.id === req.params.id))
+      return res.status(404).json({ error: "Institution not found." });
+    store.nameInstitution(req.params.id, name.trim(), true);
+    res.json(state());
+  });
   app.post("/api/connections/:id/sync", async (req, res, next) => {
     try {
       await exclusive(req.params.id, async () => {
         const token = store.token(req.params.id);
-        const { accounts } = await provider.call("/accounts/get", {
+        const { accounts, item } = await provider.call("/accounts/get", {
           access_token: token,
         });
+        if (
+          item?.institution_id &&
+          !store.list().find((c) => c.id === req.params.id)?.institution_name
+        ) {
+          try {
+            const { institution } = await provider.call(
+              "/institutions/get_by_id",
+              { institution_id: item.institution_id, country_codes: ["US"] },
+            );
+            if (institution?.name)
+              store.nameInstitution(req.params.id, institution.name);
+          } catch {
+            /* Institution naming must not block transaction imports. */
+          }
+        }
         await syncConnection(
           store,
           req.params.id,

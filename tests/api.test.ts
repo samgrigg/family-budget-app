@@ -127,3 +127,31 @@ it("retains an in-memory revocation handle if both saving and cleanup fail", asy
   expect(retried.body.connections).toEqual([]);
   s.db.close();
 });
+
+it("validates institution renaming and returns the saved label", async () => {
+  const s = new Store(":memory:", Buffer.alloc(32), "sandbox");
+  s.connect("i1", "private-token", []);
+  const app = createApp(
+    s,
+    { configured: true, call: async () => ({}) },
+    "http://localhost:3000",
+  );
+  const session = await request(app)
+    .get("/api/state")
+    .set("Host", "localhost:3000");
+  const rename = (id: string, name: string) =>
+    request(app)
+      .post(`/api/connections/${id}/name`)
+      .set("Host", "localhost:3000")
+      .set("Origin", "http://localhost:3000")
+      .set("Cookie", session.headers["set-cookie"])
+      .set("X-CSRF-Token", session.body.csrf)
+      .send({ name });
+  expect((await rename("i1", "  ")).status).toBe(400);
+  expect((await rename("missing", "Bank")).status).toBe(404);
+  const result = await rename("i1", " Household bank ");
+  expect(result.status).toBe(200);
+  expect(result.body.connections[0].display_name).toBe("Household bank");
+  expect(JSON.stringify(result.body)).not.toContain("private-token");
+  s.db.close();
+});
