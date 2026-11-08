@@ -830,6 +830,25 @@ input[type="month"] {
 .panel article p {
   overflow-wrap: anywhere;
 }
+.shared-account-list {
+  display: grid;
+  gap: 0.5rem;
+  margin-block: 1rem;
+  padding: 0;
+  list-style: none;
+}
+.shared-account-list li {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.shared-account-link {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  min-width: 44px;
+  padding-block: 0.5rem;
+  overflow-wrap: anywhere;
+}
 
 .match-comparison {
   display: grid;

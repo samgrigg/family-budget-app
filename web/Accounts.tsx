@@ -167,10 +167,14 @@ export default function Accounts({
                   s.label || "",
                   `/data-sources/${encodeURIComponent(s.id)}/name`,
                 )}
-              <ul>
+              <ul className="shared-account-list">
                 {s.accounts?.map((a: any) => (
                   <li key={a.id}>
-                    <a href={`#accounts/${encodeURIComponent(a.id)}`}>
+                    <a
+                      className="shared-account-link"
+                      href={`#accounts/${encodeURIComponent(a.id)}`}
+                      aria-label={`View ${a.name} account history`}
+                    >
                       {a.name}
                     </a>
                     {a.shared === false
