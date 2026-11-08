@@ -432,7 +432,9 @@ export default function BillPlan({
                             "Every six months",
                             "Yearly",
                           ].map((f) => (
-                            <option key={f}>{f}</option>
+                            <option key={f} value={f}>
+                              {f === "Quarterly" ? "Every 3 months" : f}
+                            </option>
                           ))}
                         </select>
                       </label>
