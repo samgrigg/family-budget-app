@@ -9,3 +9,5 @@ certs/
 .DS_Store
 
 migration-backups/
+
+__pycache__/

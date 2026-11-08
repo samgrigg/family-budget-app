@@ -1,3 +1,4 @@
+import { installBillPlanApi, type Plan } from "./bill-plan";
 import { installReplacementApi } from "./source-replacements";
 import { flowState } from "./flow";
 import { incomeState } from "./income";
@@ -14,6 +15,7 @@ export function createApp(
   provider: Provider,
   origin: string,
   redirectUri?: string,
+  billDrafts: Plan[] = [],
 ) {
   const app = express();
   installBills(store);
@@ -199,6 +201,7 @@ export function createApp(
     });
     res.json({ ok: true });
   });
+  installBillPlanApi(app, store, billDrafts);
   app.get("/api/bills", (req, res) => {
     const months = Number(req.query.months ?? 6);
     if (![3, 6, 12].includes(months))

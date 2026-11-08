@@ -1,3 +1,4 @@
+import { loadBillDrafts } from "./bill-plan";
 import { mkdirSync, readFileSync, chmodSync } from "node:fs";
 import { createServer as httpServer } from "node:http";
 import { createServer as httpsServer } from "node:https";
@@ -59,7 +60,7 @@ const redirect =
 if (redirect && redirect !== `${origin}/`)
   throw Error("PLAID_REDIRECT_URI must equal APP_ORIGIN followed by /");
 
-const app = createApp(store, provider, origin, redirect);
+const app = createApp(store, provider, origin, redirect, loadBillDrafts());
 if (process.env.NODE_ENV !== "production") {
   const { createServer } = await import("vite");
   const vite = await createServer({

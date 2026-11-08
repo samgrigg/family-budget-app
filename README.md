@@ -58,3 +58,21 @@ No live API checks run without credentials and owner consent. Passing automated 
 - [Plaid OAuth and redirect requirements](https://plaid.com/docs/link/oauth/)
 - [Transactions Sync reference](https://plaid.com/docs/api/products/transactions/)
 - [Plaid Trial eligibility](https://support.plaid.com/hc/en-us/articles/39994173227159-What-is-the-Plaid-Trial-plan)
+
+## Bills worksheet import
+
+Stage the existing worksheet locally (Python 3, standard library only):
+
+```sh
+python3 scripts/stage-bills.py "/absolute/path/to/your/workbook.xlsx"
+```
+
+Restart the app, then open **Budget → Planned commitments**. The staging command reads only the Bills tab and writes `data/bills-import.json`, which is private and ignored by Git. It never edits the workbook or confirms entries. The importer targets this workbook's existing layout: account groups in A/B and E/F, annual subscriptions in N/O, and auto-transfers in Q/R/S. It is not a general Excel importer.
+
+Expand an entry, review its actual payment amount, account, frequency, optional day and notes, then confirm or exclude it. Zero amounts and unknown frequencies cannot be confirmed. Annual subscription accounts are blank until supplied; currency initially assumes USD. Auto-transfers cannot count as bills unless explicitly reclassified. Possible duplicates use normalized name matching against other confirmed plans and confirmed transaction patterns; different merchant names can still describe the same obligation, so review both lists. Acknowledgement permits a separate commitment, not an automatic merge.
+
+Bills Overview shows confirmed plan funding by account and currency, including monthly set-asides for quarterly, semiannual and annual payments. The observed history estimate remains separate: do not add it to planned totals. Plans retain worksheet account labels without linking them to bank identities. Payment days are retained as entered, not used to assert contractual due dates.
+
+Reviewed decisions persist in SQLite per environment and source cell. Re-staging refreshes unreviewed drafts; saved decisions take precedence. Exclusion is reversible by reopening and confirming an entry. Import only the original layout: moving rows in the workbook changes cell-based identities. Do not commit staging files or the local database.
+
+Checks: `python3 -m unittest discover -s tests -p '*_test.py'` plus the usual npm checks. VoiceOver, enlarged text and live-browser review of the new forms remain outstanding.

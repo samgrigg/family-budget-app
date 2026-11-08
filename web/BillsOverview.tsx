@@ -1,3 +1,4 @@
+import BillPlan from "./BillPlan";
 import DataIssues from "./DataIssues";
 import IncomeReview from "./IncomeReview";
 import { useEffect, useState } from "react";
@@ -101,6 +102,7 @@ export default function BillsOverview({
           </button>
         </p>
       )}
+      {!income && <BillPlan api={api} revision={revision} summaryOnly />}
       <DataIssues issues={data?.dataIssues} />
       {!overview ? (
         !error && (
@@ -109,7 +111,11 @@ export default function BillsOverview({
       ) : (
         <>
           <section className="panel" aria-label="Monthly estimate">
-            <h2>{income ? "Estimated monthly income" : "Monthly estimate"}</h2>
+            <h2>
+              {income
+                ? "Estimated monthly income"
+                : "Observed monthly estimate"}
+            </h2>
             {!overview.totals.length ? (
               <p>
                 {income
