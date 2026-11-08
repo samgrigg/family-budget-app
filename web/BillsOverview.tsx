@@ -68,7 +68,9 @@ export default function BillsOverview({
   );
   return (
     <>
-      <h1>Bills Overview</h1>
+      <h1 tabIndex={-1} id="main-content">
+        Bills Overview
+      </h1>
       <p>
         Plan for your confirmed bills. Expand a bill for account details and
         payment history.

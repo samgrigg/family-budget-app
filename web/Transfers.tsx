@@ -1,11 +1,19 @@
 import { useState } from "react";
 export default function Transfers({ data, accounts, api, onError }: any) {
+  const [notice, setNotice] = useState("");
   const [view, setView] = useState("review");
   const [busy, setBusy] = useState(false);
   async function decide(key: string, status: string) {
     setBusy(true);
     try {
       await api("/transfers", { key, status });
+      setNotice(
+        status === "confirmed"
+          ? "Transfer confirmed."
+          : status === "rejected"
+            ? "Match rejected."
+            : "Match reconsidered.",
+      );
     } catch (e: any) {
       onError(e.message);
     } finally {
@@ -19,7 +27,10 @@ export default function Transfers({ data, accounts, api, onError }: any) {
     return `${a?.name ?? "Account"}${a?.mask ? ` ••${a.mask}` : ""}${a?.hidden ? " (hidden)" : ""}`;
   };
   return (
-    <section className="panel" aria-label="Internal transfers">
+    <section className="panel" aria-label="Internal transfers" tabIndex={-1}>
+      <p role="status" className="action-status">
+        {notice}
+      </p>
       <h2>Internal transfers</h2>
       <p>
         Matched movements between onboarded deposit accounts, including hidden

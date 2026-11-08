@@ -8,6 +8,7 @@ export default function Bills({
   revision: string;
   accountFilter: string;
 }) {
+  const [notice, setNotice] = useState("");
   const [months, setMonths] = useState(6),
     [data, setData] = useState<any>(null),
     [view, setView] = useState("suggestions"),
@@ -36,6 +37,13 @@ export default function Bills({
     try {
       await api("/bills", { ...body, months });
       await load();
+      setNotice(
+        body.status === "saved"
+          ? "Bill confirmed."
+          : body.status === "dismissed"
+            ? "Bill rejected."
+            : "Bill returned to review.",
+      );
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -59,7 +67,10 @@ export default function Bills({
       ]),
     );
   return (
-    <section className="panel" aria-label="Bills">
+    <section className="panel" aria-label="Bills" tabIndex={-1}>
+      <p role="status" className="action-status">
+        {notice}
+      </p>
       <div className="panel-heading">
         <h2>Bills</h2>
         <label>
@@ -150,7 +161,7 @@ export default function Bills({
               >
                 <h3>{b.name}</h3>
                 <p>From {b.transactions[0]?.fromAccount || b.accountName}</p>
-                <p>To {b.transactions[0]?.toPayee || b.name}</p>
+                <p>Description: {b.transactions[0]?.toPayee || b.name}</p>
                 <p>
                   {b.frequency} · {b.confidence}
                 </p>
@@ -187,7 +198,7 @@ export default function Bills({
                             <br />
                             From {t.fromAccount}
                             <br />
-                            To {t.toPayee}
+                            Description: {t.toPayee}
                             <br />
                             {t.possibleDestination
                               ? `Possible destination account: ${t.possibleDestination} (matched amount and date; unverified)`
@@ -206,7 +217,7 @@ export default function Bills({
                           <br />
                           From {t.fromAccount}
                           <br />
-                          To {t.toPayee}
+                          Description: {t.toPayee}
                           <br />
                           {t.possibleDestination
                             ? `Possible destination account: ${t.possibleDestination} (matched amount and date; unverified)`

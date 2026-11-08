@@ -22,10 +22,19 @@ export default function App() {
     ? route.slice("#institutions/".length)
     : "";
   useEffect(() => {
-    const navigate = () => setRoute(location.hash);
+    const navigate = () => {
+      setRoute(location.hash);
+      requestAnimationFrame(() => {
+        document.querySelector<HTMLElement>("h1")?.focus();
+        window.scrollTo(0, 0);
+      });
+    };
     window.addEventListener("hashchange", navigate);
     return () => window.removeEventListener("hashchange", navigate);
   }, []);
+  useEffect(() => {
+    document.title = `${page === "institutions" ? "Institutions" : page === "bills-overview" ? "Bills Overview" : "Budget"} · Family Budget`;
+  }, [page]);
   const csrf = useRef("");
   const handler = useRef<any>(null);
   const polling = useRef(false);
@@ -145,6 +154,16 @@ export default function App() {
   );
   return (
     <main>
+      <a
+        className="skip-link"
+        href="#main-content"
+        onClick={(e) => {
+          e.preventDefault();
+          document.querySelector<HTMLElement>("h1")?.focus();
+        }}
+      >
+        Skip to content
+      </a>
       <header>
         <a className="brand" href="/">
           <span>Family Budget</span>
@@ -183,7 +202,9 @@ export default function App() {
         <section className="panel">
           <div className="panel-heading">
             <div>
-              <h1>{institutionId ? "Institution details" : "Institutions"}</h1>
+              <h1 tabIndex={-1} id="main-content">
+                {institutionId ? "Institution details" : "Institutions"}
+              </h1>
             </div>
             <span
               className={
@@ -403,7 +424,35 @@ export default function App() {
       )}
       {page === "budget" && (
         <>
-          <h1>Budget</h1>
+          <h1 tabIndex={-1} id="main-content">
+            Budget
+          </h1>
+          <p className="page-intro">
+            Review your activity and keep your bills in order.
+          </p>
+          <div className="quick-actions" aria-label="Budget shortcuts">
+            <a href="#bills-overview">See monthly bills</a>
+            {[
+              ["Internal transfers", "Review transfers"],
+              ["Bills", "Review bills"],
+              ["Recent transactions", "See transactions"],
+            ].map(([label, text]) => (
+              <button
+                type="button"
+                className="secondary"
+                key={label}
+                onClick={() => {
+                  const target = document.querySelector<HTMLElement>(
+                    `[aria-label="${label}"]`,
+                  );
+                  target?.scrollIntoView({ block: "start" });
+                  target?.focus();
+                }}
+              >
+                {text}
+              </button>
+            ))}
+          </div>
           {!state && <p role="status">Loading…</p>}
           {state && !state.connections.length && (
             <p>
@@ -413,7 +462,7 @@ export default function App() {
           {state && (
             <section className="panel">
               <label>
-                View activity for
+                Filter bills and transactions by account
                 <select
                   value={selectedAccount}
                   onChange={(e) => setAccountFilter(e.target.value)}
@@ -467,7 +516,11 @@ export default function App() {
               </div>
             ) : (
               <div className="table-wrap">
-                <table aria-label="Recent transactions" role="table">
+                <table
+                  aria-label="Recent transactions"
+                  tabIndex={-1}
+                  role="table"
+                >
                   <thead role="rowgroup">
                     <tr role="row">
                       <th scope="col" role="columnheader">
