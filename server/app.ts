@@ -307,46 +307,106 @@ export function createApp(
     store.nameInstitution(req.params.id, name.trim(), true);
     res.json(state());
   });
-  app.post(
-    ["/api/connections/:id/sync", "/api/data-sources/:id/sync"],
-    async (req, res, next) => {
-      try {
-        const id = String(req.params.id);
-        await exclusive(id, async () => {
-          const token = store.token(id);
-          const { accounts, item } = await provider.call("/accounts/get", {
-            access_token: token,
-          });
-          if (
-            item?.institution_id &&
-            !store.list().find((c) => c.id === id)?.institution_name
-          ) {
-            try {
-              const { institution } = await provider.call(
-                "/institutions/get_by_id",
-                { institution_id: item.institution_id, country_codes: ["US"] },
-              );
-              if (institution?.name)
-                store.nameInstitution(id, institution.name);
-            } catch {
-              /* Institution naming must not block transaction imports. */
-            }
-          }
-          await syncConnection(
-            store,
-            id,
-            (cursor) =>
-              provider.call("/transactions/sync", {
-                access_token: token,
-                cursor,
-                count: 500,
-              }),
-            accounts,
+  async function syncSource(id: string) {
+    const token = store.token(id);
+    try {
+      const { accounts, item } = await provider.call("/accounts/get", {
+        access_token: token,
+      });
+      if (!Array.isArray(accounts))
+        throw Error("Invalid provider accounts response");
+      if (item?.item_id !== id) throw Error("Provider Item mismatch");
+      let name: string | undefined;
+      if (typeof item?.institution_id === "string") {
+        try {
+          const { institution } = await provider.call(
+            "/institutions/get_by_id",
+            {
+              institution_id: item.institution_id,
+              country_codes: ["US"],
+              options: { include_optional_metadata: true },
+            },
           );
+          if (
+            institution?.institution_id === item.institution_id &&
+            typeof institution.name === "string"
+          )
+            name = institution.name;
+        } catch {
+          /* Display metadata must not block imports. */
+        }
+      }
+      await syncConnection(
+        store,
+        id,
+        (cursor) =>
+          provider.call("/transactions/sync", {
+            access_token: token,
+            cursor,
+            count: 500,
+          }),
+        accounts,
+        true,
+      );
+      if (typeof item?.institution_id === "string")
+        store.verifiedInstitution(id, item.institution_id, name);
+    } catch (error: any) {
+      if (error.code === "ITEM_LOGIN_REQUIRED")
+        store.sourceStatus(id, "needs_authorization");
+      throw error;
+    }
+  }
+  app.post("/api/data-sources/:id/link-token", async (req, res, next) => {
+    const id = String(req.params.id);
+    if (!["repair", "select_accounts"].includes(req.body?.action))
+      return res
+        .status(400)
+        .json({
+          error: "Choose Repair authorization or Review shared accounts.",
+        });
+    if (!store.list().some((s) => s.id === id))
+      return res.status(404).json({ error: "Source not found." });
+    try {
+      let result: any;
+      await exclusive(id, async () => {
+        if (store.connection(id).status === "revoke_required")
+          throw Object.assign(Error(), { code: "DISCONNECTED" });
+        result = await provider.call("/link/token/create", {
+          user: { client_user_id: `family-budget-${store.env}` },
+          client_name: "Family Budget",
+          country_codes: ["US"],
+          language: "en",
+          access_token: store.token(id),
+          ...(req.body.action === "select_accounts"
+            ? { update: { account_selection_enabled: true } }
+            : {}),
+          ...(redirectUri ? { redirect_uri: redirectUri } : {}),
+        });
+      });
+      res.json({ link_token: result.link_token });
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.post(
+    [
+      "/api/connections/:id/sync",
+      "/api/data-sources/:id/sync",
+      "/api/data-sources/:id/authorization-complete",
+    ],
+    async (req, res, next) => {
+      const id = String(req.params.id);
+      if (!store.list().some((s) => s.id === id))
+        return res.status(404).json({ error: "Source not found." });
+      try {
+        await exclusive(id, async () => {
+          if (store.connection(id).status === "revoke_required")
+            throw Object.assign(Error(), { code: "DISCONNECTED" });
+          await syncSource(id);
         });
         res.json(state());
-      } catch (e) {
-        next(e);
+      } catch (error) {
+        next(error);
       }
     },
   );
@@ -354,12 +414,10 @@ export function createApp(
     "/api/data-sources/:id/resolve-missing-access",
     async (req, res, next) => {
       if (req.body?.confirmAccessRevoked !== true)
-        return res
-          .status(400)
-          .json({
-            error:
-              "First revoke this source's access through your institution or Plaid Portal. Then explicitly confirm external revocation with confirmAccessRevoked: true. Missing credentials alone do not establish revocation.",
-          });
+        return res.status(400).json({
+          error:
+            "First revoke this source's access through your institution or Plaid Portal. Then explicitly confirm external revocation with confirmAccessRevoked: true. Missing credentials alone do not establish revocation.",
+        });
       const id = String(req.params.id);
       try {
         let result: string | undefined;
@@ -371,13 +429,11 @@ export function createApp(
         if (result === "missing")
           return res.status(404).json({ error: "Source not found." });
         if (result === "credential_present")
-          return res
-            .status(409)
-            .json({
-              error:
-                "This source still has an access credential. Use Disconnect to revoke access.",
-              code: "CREDENTIAL_PRESENT",
-            });
+          return res.status(409).json({
+            error:
+              "This source still has an access credential. Use Disconnect to revoke access.",
+            code: "CREDENTIAL_PRESENT",
+          });
         res.json({
           sourceId: id,
           status: "historical",
@@ -442,7 +498,7 @@ export function createApp(
       const messages: Record<string, string> = {
         NOT_CONFIGURED: "Add your Plaid credentials to .env and restart.",
         ITEM_LOGIN_REQUIRED:
-          "Your institution needs renewed authorization. Disconnect and connect again.",
+          "Your institution needs renewed authorization. Use Repair authorization in Manage data access.",
         DISCONNECTED:
           "This source is disconnected. Its saved history remains available.",
         BUSY: "An operation is already running. Please wait.",

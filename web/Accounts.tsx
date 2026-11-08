@@ -13,6 +13,7 @@ export default function Accounts({
   route,
   onRefresh,
   addSource,
+  updateSource,
   configured,
   busy,
   externalError,
@@ -56,6 +57,10 @@ export default function Accounts({
         if (gate.current.active()) await load();
       }
     } catch (e: any) {
+      if (refresh) {
+        await onRefresh().catch(() => {});
+        if (gate.current.active()) await load();
+      }
       if (gate.current.active()) setError(e.message);
     } finally {
       if (gate.current.active()) setWorking(false);
@@ -117,9 +122,11 @@ export default function Accounts({
       {index && access && (
         <>
           <p>
-            Data sources import account history through Plaid. Disconnecting
-            stops imports and keeps saved history. Budgeting inclusion is set on
-            each account; chart visibility is separate.
+            Data sources import account history through Plaid. Repair
+            authorization renews access; Review shared accounts opens your
+            institution’s sharing choices. Disconnecting stops imports and keeps
+            saved history. Budgeting inclusion is set on each account; chart
+            visibility is separate.
           </p>
           <button disabled={disabled || !configured} onClick={addSource}>
             Add data source
@@ -132,14 +139,20 @@ export default function Accounts({
           )}
           {index.sources.map((s: any) => (
             <article className="connection" key={s.id}>
-              <h2>{s.label || "Data source"}</h2>
+              <h2>
+                {index.institutions.find((i: any) => i.id === s.institution_id)
+                  ?.name || "Institution not yet identified"}
+              </h2>
+              <p>{s.label || "Data source"}</p>
               <p>
                 {s.provider} ·{" "}
                 {s.status === "historical"
                   ? "Disconnected · saved history is stale"
-                  : s.status === "revoke_required"
-                    ? "Revocation needs retry"
-                    : s.status}
+                  : s.status === "needs_authorization"
+                    ? "Needs authorization"
+                    : s.status === "revoke_required"
+                      ? "Revocation needs retry"
+                      : s.status}
               </p>
               <p>
                 Requested history:{" "}
@@ -154,6 +167,20 @@ export default function Accounts({
                   s.label || "",
                   `/data-sources/${encodeURIComponent(s.id)}/name`,
                 )}
+              <ul>
+                {s.accounts?.map((a: any) => (
+                  <li key={a.id}>
+                    <a href={`#accounts/${encodeURIComponent(a.id)}`}>
+                      {a.name}
+                    </a>
+                    {a.shared === false
+                      ? " · No longer shared; saved history is stale"
+                      : a.shared === true
+                        ? " · Shared"
+                        : " · Sharing not yet checked"}
+                  </li>
+                ))}
+              </ul>
               <div className="actions">
                 <button
                   disabled={
@@ -168,6 +195,28 @@ export default function Accounts({
                 >
                   Sync
                 </button>
+                {!s.missingAccessCredential &&
+                  !["historical", "revoke_required"].includes(s.status) && (
+                    <>
+                      <button
+                        disabled={disabled || !configured}
+                        onClick={() => updateSource(s.id, "repair")}
+                      >
+                        Repair authorization
+                      </button>
+                      <button
+                        disabled={disabled || !configured}
+                        onClick={() => updateSource(s.id, "select_accounts")}
+                      >
+                        Review shared accounts
+                      </button>
+                      <p>
+                        Update access for this source. Saved history stays
+                        available for accounts no longer shared. This does not
+                        request older history.
+                      </p>
+                    </>
+                  )}
                 {s.status !== "historical" &&
                   (s.missingAccessCredential ? (
                     <>
@@ -257,7 +306,7 @@ export default function Accounts({
                             ? "Included in budgeting"
                             : "Excluded from budgeting"}
                           {a.stale
-                            ? " · Disconnected; saved history is stale"
+                            ? " · Saved history is stale; access unavailable or account no longer shared"
                             : ""}
                         </span>
                       </a>
@@ -335,12 +384,15 @@ export default function Accounts({
               Oldest: {c.oldestPosted || "Unknown"} · Newest:{" "}
               {c.newestPosted || "Unknown"}
               <br />
-              Requested: {c.requestedDays} days · Status: {c.importState} · Last
-              successful check: {c.lastChecked || "Unknown"}
+              Requested: {c.requestedDays} days · Status:{" "}
+              {c.importState === "no_longer_shared"
+                ? "No longer shared; saved history is stale"
+                : c.importState}{" "}
+              · Last successful check: {c.lastChecked || "Unknown"}
             </p>
           ))}
           <p>
-            <a href="#data-access">Manage sources, sync or disconnect</a>
+            <a href="#data-access">Manage data access</a>
           </p>
           <h2>Source transactions</h2>
           <p>

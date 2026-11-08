@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { Store, bootstrapLegacy } from "../server/store";
 import {
   migrateDatabase,
+  accountSchemaVersion,
   ensureAccountIdentities,
 } from "../server/accountMigration";
 
@@ -138,7 +139,7 @@ describe("account identity migration", () => {
         db.prepare("SELECT * FROM app_accounts ORDER BY env,included").all(),
       ).toEqual(accounts);
       expect(db.prepare("SELECT * FROM schema_migrations").all()).toHaveLength(
-        4,
+        accountSchemaVersion,
       );
     } finally {
       db.close();
@@ -194,7 +195,7 @@ describe("account identity migration", () => {
       expect(snapshot(db)).toEqual(before);
       await migrateDatabase(db);
       expect(db.prepare("SELECT * FROM schema_migrations").all()).toHaveLength(
-        4,
+        accountSchemaVersion,
       );
     } finally {
       db.close();
@@ -256,7 +257,7 @@ it("backs up a version-one database before read-boundary schema upgrade and guar
     );
     await migrateDatabase(db);
     db.exec(
-      "DROP TABLE transaction_metadata; DROP TABLE source_account_metadata; DROP TABLE decision_id_aliases; DROP TABLE account_links; DROP TABLE transaction_events; DROP TABLE transaction_event_aliases; DROP TABLE transaction_event_occupancy; DELETE FROM schema_migrations WHERE version>=2",
+      "DROP TABLE transaction_metadata; DROP TABLE source_account_metadata; DROP TABLE decision_id_aliases; DROP TABLE account_links; DROP TABLE transaction_events; DROP TABLE transaction_event_aliases; DROP TABLE transaction_event_occupancy; DROP TABLE source_account_access; DELETE FROM schema_migrations WHERE version>=2",
     );
     const existing = (await readdir(join(dir, "migration-backups"))).length;
     expect(() => new Store(db, Buffer.alloc(32), "sandbox")).toThrow(
@@ -281,7 +282,7 @@ it("backs up a version-two database before reversible-link schema changes", asyn
     await migrateDatabase(db);
     const before = snapshot(db);
     db.exec(
-      "DROP TABLE account_links; DROP TABLE transaction_events; DROP TABLE transaction_event_aliases; DROP TABLE transaction_event_occupancy; DELETE FROM schema_migrations WHERE version>=3",
+      "DROP TABLE account_links; DROP TABLE transaction_events; DROP TABLE transaction_event_aliases; DROP TABLE transaction_event_occupancy; DROP TABLE source_account_access; DELETE FROM schema_migrations WHERE version>=3",
     );
     const count = (await readdir(join(dir, "migration-backups"))).length;
     expect(() => new Store(db, Buffer.alloc(32), "sandbox")).toThrow(
@@ -330,7 +331,7 @@ it("backs up v3 and conservatively seals unknown historical event occupancy by e
       );
     }
     db.exec(
-      "DROP TABLE transaction_event_occupancy; DELETE FROM schema_migrations WHERE version=4",
+      "DROP TABLE transaction_event_occupancy; DROP TABLE source_account_access; DELETE FROM schema_migrations WHERE version>=4",
     );
     const before = (await readdir(join(dir, "migration-backups"))).length;
     expect(() => new Store(db, Buffer.alloc(32), "sandbox")).toThrow(
@@ -356,6 +357,48 @@ it("backs up v3 and conservatively seals unknown historical event occupancy by e
           .get(env, "macu-1", "old-event"),
       ).toEqual({ transaction_id: null });
     }
+    await migrateDatabase(db);
+    expect((await readdir(join(dir, "migration-backups"))).length).toBe(
+      before + 1,
+    );
+  } finally {
+    db.close();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+it("backs up version four before adding account availability without rewriting event occupancy", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "budget-v4-"));
+  const db = fixture(join(dir, "synthetic.sqlite"));
+  try {
+    await migrateDatabase(db);
+    const aliases = db.prepare("SELECT * FROM source_accounts").all();
+    db.prepare("INSERT INTO transaction_event_occupancy VALUES(?,?,?,?)").run(
+      "sandbox",
+      "macu-1",
+      "retired-event",
+      "original",
+    );
+    db.exec(
+      "DROP TABLE source_account_access; DELETE FROM schema_migrations WHERE version=5",
+    );
+    const before = (await readdir(join(dir, "migration-backups"))).length;
+    expect(() => new Store(db, Buffer.alloc(32), "sandbox")).toThrow(
+      /Await migrateDatabase/,
+    );
+    await migrateDatabase(db);
+    expect((await readdir(join(dir, "migration-backups"))).length).toBe(
+      before + 1,
+    );
+    expect(db.prepare("SELECT * FROM source_accounts").all()).toEqual(aliases);
+    expect(db.prepare("SELECT * FROM source_account_access").all()).toEqual([]);
+    expect(
+      db
+        .prepare(
+          "SELECT transaction_id FROM transaction_event_occupancy WHERE event_id='retired-event'",
+        )
+        .get(),
+    ).toEqual({ transaction_id: "original" });
     await migrateDatabase(db);
     expect((await readdir(join(dir, "migration-backups"))).length).toBe(
       before + 1,

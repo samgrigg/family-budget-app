@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { chmod, mkdir, open, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
-export const accountSchemaVersion = 4;
+export const accountSchemaVersion = 5;
 const version = accountSchemaVersion;
 const schema = `
 CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL);
@@ -180,9 +180,17 @@ export function applyAccountMigration(db: Database.Database): void {
       db.prepare("INSERT INTO schema_migrations VALUES(3,?)").run(
         new Date().toISOString(),
       );
-    db.exec(`CREATE TABLE IF NOT EXISTS transaction_event_occupancy(env TEXT NOT NULL,source_id TEXT NOT NULL,event_id TEXT NOT NULL,transaction_id TEXT,PRIMARY KEY(env,source_id,event_id));
+    if (!db.prepare("SELECT 1 FROM schema_migrations WHERE version=4").get()) {
+      db.exec(`CREATE TABLE IF NOT EXISTS transaction_event_occupancy(env TEXT NOT NULL,source_id TEXT NOT NULL,event_id TEXT NOT NULL,transaction_id TEXT,PRIMARY KEY(env,source_id,event_id));
       INSERT OR IGNORE INTO transaction_event_occupancy SELECT env,source_id,event_id,transaction_id FROM transaction_event_aliases;
       INSERT OR IGNORE INTO transaction_event_occupancy SELECT e.env,s.source_id,e.event_id,NULL FROM transaction_events e JOIN source_accounts s ON s.env=e.env AND s.account_id=e.account_id;`);
+      db.prepare("INSERT INTO schema_migrations VALUES(4,?)").run(
+        new Date().toISOString(),
+      );
+    }
+    db.exec(
+      `CREATE TABLE IF NOT EXISTS source_account_access(env TEXT NOT NULL,source_id TEXT NOT NULL,provider_account_id TEXT NOT NULL,shared INTEGER NOT NULL,PRIMARY KEY(env,source_id,provider_account_id));`,
+    );
     // A missing historical v3 alias is unknown occupancy, not proof that a slot is free.
     ensureAccountIdentities(db);
     db.prepare("INSERT INTO schema_migrations VALUES(?,?)").run(

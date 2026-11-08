@@ -1,3 +1,10 @@
+import {
+  saveLinkAction,
+  readLinkAction,
+  cancelLinkAction,
+  completeLinkAction,
+  type LinkAction,
+} from "./linkSession";
 import DataIssues from "./DataIssues";
 import Accounts from "./Accounts";
 import MoneyFlow from "./MoneyFlow";
@@ -14,6 +21,8 @@ export default function App() {
   const [state, setState] = useState<any>(null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
+  const [linkAction, setLinkAction] = useState<LinkAction | null>(null);
+  const [linkNotice, setLinkNotice] = useState("");
   const [accountFilter, setAccountFilter] = useState("");
   const [route, setRoute] = useState(location.hash);
   const page =
@@ -82,35 +91,105 @@ export default function App() {
       document.head.append(script);
     });
   }
-  async function openLink(token: string, resume = false) {
+  function returnToDataAccess() {
+    history.replaceState({}, "", "/#data-access");
+    setRoute("#data-access");
+  }
+  async function finishAuthorization(action: LinkAction, publicToken = "") {
+    try {
+      await completeLinkAction(sessionStorage, action, publicToken, api);
+      setLinkAction(null);
+      setLinkNotice(
+        action.mode === "new"
+          ? "Data source added. History import may still be in progress."
+          : "Authorization checked. Saved history was retained; available updates were imported.",
+      );
+    } finally {
+      setLinkAction(readLinkAction(sessionStorage, action.environment));
+      // Refresh even on failure so a renewed-authorization status is actionable.
+      await api("/state");
+    }
+  }
+  async function openLink(action: LinkAction, resume = false) {
     await loadLink();
     handler.current?.destroy();
+    let completed = false;
     handler.current = window.Plaid.create({
-      token,
+      token: action.linkToken,
       ...(resume ? { receivedRedirectUri: window.location.href } : {}),
       onSuccess: (public_token: string) => {
-        sessionStorage.removeItem("plaid_link_token");
-        history.replaceState({}, "", "/");
-        void run(async () => {
-          await api("/connect", { public_token });
-        });
+        completed = true;
+        returnToDataAccess();
+        void run(() => finishAuthorization(action, public_token));
       },
       onExit: (e: any) => {
-        sessionStorage.removeItem("plaid_link_token");
-        history.replaceState({}, "", "/");
-        if (e) setError("Connection was not completed. Please try again.");
+        if (completed) return;
+        cancelLinkAction(sessionStorage);
+        setLinkAction(null);
+        returnToDataAccess();
+        setLinkNotice(
+          "Authorization was not completed. Saved history remains available. You can start the action again; any changes made at your bank may still apply.",
+        );
+        if (e)
+          setError(
+            "Authorization was not completed. Try Repair authorization or Review shared accounts again.",
+          );
       },
     });
     handler.current.open();
   }
+  async function continueAuthorization() {
+    if (!linkAction) return;
+    if (linkAction.phase === "verify") return finishAuthorization(linkAction);
+    let current: LinkAction | null;
+    try {
+      current = readLinkAction(sessionStorage, linkAction.environment);
+    } finally {
+      if (!sessionStorage.getItem("budget_plaid_action")) setLinkAction(null);
+    }
+    if (current) await openLink(current);
+  }
+  async function startLink(mode: LinkAction["mode"], sourceId?: string) {
+    if (linkAction)
+      throw Error("Finish or cancel the current authorization action first.");
+    setLinkNotice("");
+    const { link_token } = await api(
+      mode === "new"
+        ? "/link-token"
+        : `/data-sources/${encodeURIComponent(sourceId!)}/link-token`,
+      mode === "new" ? {} : { action: mode },
+    );
+    const action: LinkAction = {
+      mode,
+      sourceId,
+      environment: state.environment,
+      phase: "link",
+      linkToken: link_token,
+      expiresAt: Date.now() + (mode === "new" ? 4 * 60 : 30) * 60 * 1000,
+    };
+    saveLinkAction(sessionStorage, action);
+    setLinkAction(action);
+    await openLink(action);
+  }
   useEffect(() => {
     void run(async () => {
-      await api("/state");
+      const current = await api("/state");
+      let action: LinkAction | null;
+      try {
+        action = readLinkAction(sessionStorage, current.environment);
+      } catch (error) {
+        returnToDataAccess();
+        throw error;
+      }
+      setLinkAction(action);
       if (new URLSearchParams(location.search).has("oauth_state_id")) {
-        const token = sessionStorage.getItem("plaid_link_token");
-        if (!token)
-          throw Error("Authorization session expired. Connect again.");
-        await openLink(token, true);
+        if (!action || action.phase !== "link") {
+          returnToDataAccess();
+          throw Error(
+            "Authorization session expired. Start the action again in Manage data access.",
+          );
+        }
+        await openLink(action, true);
       }
     });
     return () => handler.current?.destroy();
@@ -230,10 +309,43 @@ export default function App() {
           revision={JSON.stringify([state?.connections, state?.accounts])}
         />
       )}
-      {page === "budget" && error && (
+      {page !== "accounts" && error && (
         <p role="alert" className="error">
           {error}
         </p>
+      )}
+      {linkNotice && <p role="status">{linkNotice}</p>}
+      {linkAction && (
+        <section className="connection" aria-label="Authorization in progress">
+          <p>
+            {linkAction.phase === "verify"
+              ? "Authorization returned. Verify and import available updates to finish."
+              : "An authorization action is in progress. Continue it or cancel this local session."}
+          </p>
+          <div className="actions">
+            <button
+              disabled={busy}
+              onClick={() => void run(continueAuthorization)}
+            >
+              {linkAction.phase === "verify"
+                ? "Retry authorization check"
+                : "Continue authorization"}
+            </button>
+            <button
+              disabled={busy}
+              onClick={() => {
+                handler.current?.destroy();
+                cancelLinkAction(sessionStorage);
+                setLinkAction(null);
+                setLinkNotice(
+                  "Local authorization session canceled. Saved history remains. Changes already made at your bank may still apply.",
+                );
+              }}
+            >
+              Cancel authorization session
+            </button>
+          </div>
+        </section>
       )}
       {page === "accounts" && (
         <Accounts
@@ -242,15 +354,13 @@ export default function App() {
           api={api}
           route={route}
           onRefresh={() => api("/state")}
-          addSource={() =>
-            run(async () => {
-              const { link_token } = await api("/link-token", {});
-              sessionStorage.setItem("plaid_link_token", link_token);
-              await openLink(link_token);
-            })
-          }
+          addSource={() => run(() => startLink("new"))}
+          updateSource={(
+            sourceId: string,
+            action: "repair" | "select_accounts",
+          ) => run(() => startLink(action, sourceId))}
           configured={state?.configured}
-          busy={busy}
+          busy={busy || !!linkAction}
           externalError={error}
         />
       )}

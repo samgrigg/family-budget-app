@@ -42,9 +42,13 @@ export class AccountRepository {
     ensureAccountIdentities(this.db);
     return this.db
       .prepare(
-        `SELECT a.*,s.env AS env,s.source_id AS connection,s.provider_account_id AS id,s.account_id AS canonicalAccountId,c.institution_id AS institutionId,c.name,c.type,c.subtype,c.ownership,c.included,1-c.included AS hidden FROM source_accounts s JOIN app_accounts c ON c.env=s.env AND c.id=s.account_id LEFT JOIN accounts a ON a.env=s.env AND a.connection=s.source_id AND a.id=s.provider_account_id WHERE s.env=? ORDER BY a.connection,c.name,a.id`,
+        `SELECT a.*,s.env AS env,s.source_id AS connection,s.provider_account_id AS id,s.account_id AS canonicalAccountId,c.institution_id AS institutionId,c.name,c.type,c.subtype,c.ownership,c.included,1-c.included AS hidden,x.shared FROM source_accounts s JOIN app_accounts c ON c.env=s.env AND c.id=s.account_id LEFT JOIN accounts a ON a.env=s.env AND a.connection=s.source_id AND a.id=s.provider_account_id LEFT JOIN source_account_access x ON x.env=s.env AND x.source_id=s.source_id AND x.provider_account_id=s.provider_account_id WHERE s.env=? ORDER BY a.connection,c.name,a.id`,
       )
-      .all(this.env);
+      .all(this.env)
+      .map((a: any) => ({
+        ...a,
+        shared: a.shared === null ? null : !!a.shared,
+      }));
   }
   listAccounts(): AccountIdentity[] {
     return [
@@ -151,7 +155,7 @@ export class AccountRepository {
     return (
       this.db
         .prepare(
-          "SELECT d.* FROM data_sources d JOIN source_accounts s ON s.env=d.env AND s.source_id=d.id WHERE d.env=? AND s.account_id=?",
+          "SELECT d.*,x.shared FROM data_sources d JOIN source_accounts s ON s.env=d.env AND s.source_id=d.id LEFT JOIN source_account_access x ON x.env=s.env AND x.source_id=s.source_id AND x.provider_account_id=s.provider_account_id WHERE d.env=? AND s.account_id=?",
         )
         .all(this.env, accountId) as any[]
     ).map((s) => {
@@ -165,7 +169,7 @@ export class AccountRepository {
         oldestPosted: dates[0] ?? null,
         newestPosted: dates.at(-1) ?? null,
         lastChecked: s.last_checked,
-        importState: s.status,
+        importState: s.shared === 0 ? "no_longer_shared" : s.status,
       };
     });
   }

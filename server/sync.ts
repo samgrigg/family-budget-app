@@ -5,6 +5,7 @@ export async function syncConnection(
   id: string,
   fetchPage: (cursor?: string) => Promise<any>,
   accounts: any[] = [],
+  authoritativeAccounts = false,
 ) {
   let set = locks.get(store);
   if (!set) locks.set(store, (set = new Set()));
@@ -26,7 +27,7 @@ export async function syncConnection(
           pages.push(p);
           cursor = p.next_cursor;
           if (!p.has_more) {
-            store.commit(id, pages, cursor!, accounts);
+            store.commit(id, pages, cursor!, accounts, authoritativeAccounts);
             return;
           }
         }

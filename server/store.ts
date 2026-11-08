@@ -1,4 +1,5 @@
 import Database from "better-sqlite3";
+import { randomUUID } from "node:crypto";
 import {
   accountSchemaVersion,
   applyAccountMigration,
@@ -97,6 +98,66 @@ export class Store {
           );
     })();
   }
+  /** Provider-verified identity only. Display names never establish an alias. */
+  verifiedInstitution(id: string, providerId: string, name?: string) {
+    this.db.transaction(() => {
+      const source = this.db
+        .prepare("SELECT institution_id FROM data_sources WHERE env=? AND id=?")
+        .get(this.env, id) as any;
+      if (!source) throw Error("Source not found");
+      const old = this.db
+        .prepare("SELECT * FROM app_institutions WHERE env=? AND id=?")
+        .get(this.env, source.institution_id) as any;
+      const alias = this.db
+        .prepare(
+          "SELECT institution_id FROM institution_aliases WHERE env=? AND provider='plaid' AND provider_id=?",
+        )
+        .get(this.env, providerId) as any;
+      const target =
+        alias?.institution_id ?? (old.provisional ? old.id : randomUUID());
+      if (!alias) {
+        if (target !== old.id)
+          this.db
+            .prepare("INSERT INTO app_institutions VALUES(?,?,?,0)")
+            .run(this.env, target, name || "Institution");
+        this.db
+          .prepare("INSERT INTO institution_aliases VALUES(?,'plaid',?,?)")
+          .run(this.env, providerId, target);
+      }
+      // Keep the first verified group’s display name and all owner names.
+      // Only fill a provisional generic placeholder on first verification.
+      this.db
+        .prepare(
+          "UPDATE app_institutions SET provisional=0,name=CASE WHEN provisional=1 AND name='Institution' AND ? IS NOT NULL THEN ? ELSE name END WHERE env=? AND id=?",
+        )
+        .run(name ?? null, name ?? null, this.env, target);
+      this.db
+        .prepare(
+          "UPDATE data_sources SET institution_id=? WHERE env=? AND id=?",
+        )
+        .run(target, this.env, id);
+      this.db
+        .prepare(
+          "UPDATE app_accounts SET institution_id=? WHERE env=? AND institution_id=? AND id IN (SELECT account_id FROM source_accounts WHERE env=? AND source_id=?)",
+        )
+        .run(target, this.env, old.id, this.env, id);
+      if (name) this.nameInstitution(id, name);
+    })();
+  }
+  recordSharedAccounts(id: string, accounts: any[]) {
+    // An authoritative successful accounts/get snapshot never deletes old mappings.
+    this.db
+      .prepare(
+        "INSERT INTO source_account_access SELECT env,source_id,provider_account_id,0 FROM source_accounts WHERE env=? AND source_id=? ON CONFLICT(env,source_id,provider_account_id) DO UPDATE SET shared=0",
+      )
+      .run(this.env, id);
+    for (const a of accounts)
+      this.db
+        .prepare(
+          "INSERT INTO source_account_access VALUES(?,?,?,1) ON CONFLICT(env,source_id,provider_account_id) DO UPDATE SET shared=1",
+        )
+        .run(this.env, id, a.account_id);
+  }
   connection(id: string): any {
     const row = this.db
       .prepare("SELECT * FROM connections WHERE env=? AND id=?")
@@ -127,6 +188,10 @@ export class Store {
         `INSERT INTO institution_details(env,connection,${column}) VALUES(?,?,?) ON CONFLICT(env,connection) DO UPDATE SET ${column}=excluded.${column}`,
       )
       .run(this.env, id, name);
+    if (custom)
+      this.db
+        .prepare("UPDATE data_sources SET label=? WHERE env=? AND id=?")
+        .run(name, this.env, id);
   }
   accountList(): any[] {
     return this.repository.accounts();
@@ -167,18 +232,25 @@ export class Store {
         account: accounts.get(t.canonicalAccountId)?.name,
       }));
   }
-  commit(id: string, pages: any[], cursor: string, accounts: any[]) {
+  commit(
+    id: string,
+    pages: any[],
+    cursor: string,
+    accounts: any[],
+    authoritativeAccounts = false,
+  ) {
     this.db.transaction(() => {
       if (this.connection(id).status === "historical")
         throw Object.assign(Error("Source is disconnected"), {
           code: "DISCONNECTED",
         });
       this.accounts(id, accounts);
+      if (authoritativeAccounts) this.recordSharedAccounts(id, accounts);
       const put = this.db.prepare(
         "INSERT OR REPLACE INTO transactions VALUES(?,?,?,?,?,?,?,?,?)",
       );
       const del = this.db.prepare(
-        "DELETE FROM transactions WHERE env=? AND connection=? AND id=?",
+        "DELETE FROM transactions WHERE env=? AND connection=? AND id=? AND NOT EXISTS(SELECT 1 FROM source_account_access x WHERE x.env=transactions.env AND x.source_id=transactions.connection AND x.provider_account_id=transactions.account AND x.shared=0)",
       );
       for (const p of pages) {
         for (const t of [...p.added, ...p.modified]) {

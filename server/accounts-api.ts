@@ -80,6 +80,14 @@ export function installAccountApi(
           recoveryOnly: true,
         });
     }
+    for (const source of sources)
+      source.accounts = raw
+        .filter((a) => a.connection === source.id)
+        .map((a) => ({
+          id: a.canonicalAccountId,
+          name: a.name,
+          shared: a.shared,
+        }));
     res.json({
       environment: store.env,
       account_redirects: linking.redirects(),
@@ -96,7 +104,7 @@ export function installAccountApi(
                 .every(
                   (r) =>
                     sources.find((s) => s.id === r.connection)?.status ===
-                    "historical",
+                      "historical" || r.shared === false,
                 ),
               mask:
                 raw.find((r) => r.canonicalAccountId === a.id)?.mask ?? null,
@@ -105,7 +113,9 @@ export function installAccountApi(
         ).values(),
       ],
       institutions: store.db
-        .prepare("SELECT id,name,provisional FROM app_institutions WHERE env=?")
+        .prepare(
+          "SELECT i.id,i.name,i.provisional FROM app_institutions i WHERE i.env=? AND (EXISTS(SELECT 1 FROM app_accounts a JOIN source_accounts s ON s.env=a.env AND s.account_id=a.id WHERE a.env=i.env AND a.institution_id=i.id) OR EXISTS(SELECT 1 FROM data_sources d WHERE d.env=i.env AND d.institution_id=i.id))",
+        )
         .all(store.env),
       sources,
     });
@@ -122,11 +132,9 @@ export function installAccountApi(
         error: "Enter a name (1–120 characters) and budgeting inclusion.",
       });
     if (!store.repository.listAccounts().some((a) => a.id === req.params.id))
-      return res
-        .status(404)
-        .json({
-          error: "Account not found. Reload accounts; it may have been linked.",
-        });
+      return res.status(404).json({
+        error: "Account not found. Reload accounts; it may have been linked.",
+      });
     const result = store.db
       .prepare("UPDATE app_accounts SET name=?,included=? WHERE env=? AND id=?")
       .run(name.trim(), Number(included), store.env, req.params.id);
@@ -180,7 +188,7 @@ export function installAccountApi(
     }
     const sources = store.db
       .prepare(
-        "SELECT d.id,d.provider,d.label,d.status,d.requested_days,d.last_checked,s.provider_account_id,CASE WHEN c.token IS NULL THEN 1 ELSE 0 END AS missingAccessCredential FROM source_accounts s JOIN data_sources d ON d.env=s.env AND d.id=s.source_id LEFT JOIN connections c ON c.env=d.env AND c.id=d.id WHERE s.env=? AND s.account_id=?",
+        "SELECT d.id,d.provider,d.label,d.status,d.requested_days,d.last_checked,s.provider_account_id,x.shared,CASE WHEN c.token IS NULL THEN 1 ELSE 0 END AS missingAccessCredential FROM source_accounts s JOIN data_sources d ON d.env=s.env AND d.id=s.source_id LEFT JOIN connections c ON c.env=d.env AND c.id=d.id LEFT JOIN source_account_access x ON x.env=s.env AND x.source_id=s.source_id AND x.provider_account_id=s.provider_account_id WHERE s.env=? AND s.account_id=?",
       )
       .all(store.env, account.id);
     res.json({
