@@ -1,4 +1,5 @@
-import { flowNetwork } from "./flowNetwork";
+import Sankey from "./Sankey";
+import { filteredSankey, flowNetwork } from "./flowNetwork";
 import { useEffect, useRef, useState } from "react";
 export default function MoneyFlow({ api }: any) {
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7)),
@@ -6,6 +7,7 @@ export default function MoneyFlow({ api }: any) {
     [data, setData] = useState<any>(null),
     [error, setError] = useState(""),
     [selected, setSelected] = useState<any>(null);
+  const [view, setView] = useState("sankey");
   const chart = useRef<HTMLDivElement>(null);
   const [fullscreen, setFullscreen] = useState(false),
     [expanded, setExpanded] = useState(false);
@@ -81,6 +83,8 @@ export default function MoneyFlow({ api }: any) {
   const network = data
     ? flowNetwork(data, hidden)
     : { accounts: [], nodes: [], links: [] };
+  const sankey = data ? filteredSankey(data, hidden) : { nodes: [], links: [] };
+  const detailGraph = view === "sankey" ? sankey : network;
   const nodes = network.nodes.map((n: any) => ({ ...n }));
   const height = Math.max(
     600,
@@ -124,9 +128,9 @@ export default function MoneyFlow({ api }: any) {
         Money Flow
       </h1>
       <p>
-        Each account appears once. Arrows show direction; thicker edges
-        represent larger amounts. Select an account to highlight its
-        connections.
+        Switch between Sankey and Network views. In Network, each account
+        appears once. Arrows show direction; thicker edges represent larger
+        amounts. Select an account to highlight its connections.
       </p>
       <div className="flow-filters">
         <label>
@@ -177,6 +181,26 @@ export default function MoneyFlow({ api }: any) {
           >
             <div className="flow-toolbar">
               <strong>Money Flow · {month}</strong>
+              <div className="actions" aria-label="Diagram view">
+                {[
+                  ["sankey", "Sankey"],
+                  ["network", "Network"],
+                ].map(([v, label]) => (
+                  <button
+                    key={v}
+                    type="button"
+                    className={view === v ? "" : "secondary"}
+                    aria-pressed={view === v}
+                    onClick={() => {
+                      setView(v);
+                      setSelected(null);
+                      setFocusNode(null);
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
               <button
                 type="button"
                 className="secondary"
@@ -275,107 +299,116 @@ export default function MoneyFlow({ api }: any) {
               className="flow-scroll"
               tabIndex={0}
               role="region"
-              aria-label="Directed money flow network, horizontally scrollable. Full values in the list below."
+              aria-label={`${view === "sankey" ? "Sankey diagram" : "Directed network"}, horizontally scrollable. Full values in the list below.`}
             >
-              <svg
-                viewBox={`0 0 1200 ${height}`}
-                style={{ minWidth: 1000 }}
-                role="group"
-                aria-label={`Money flow network for ${month}`}
-              >
-                <defs>
-                  {Object.entries(colors).map(([kind, color]) => (
-                    <marker
-                      id={`arrow-${kind.replaceAll(" ", "-")}`}
-                      key={kind}
-                      viewBox="0 0 10 10"
-                      refX="9"
-                      refY="5"
-                      markerWidth="8"
-                      markerHeight="8"
-                      orient="auto"
-                      markerUnits="userSpaceOnUse"
-                    >
-                      <path d="M 0 0 L 10 5 L 0 10 z" fill={color as string} />
-                    </marker>
-                  ))}
-                </defs>
-                {paths.map((p: any, i: number) => (
-                  <g
-                    key={i}
-                    opacity={
-                      !focusNode ||
-                      p.source === focusNode ||
-                      p.target === focusNode
-                        ? 1
-                        : 0.12
-                    }
-                  >
-                    <path
-                      d={p.path}
-                      fill="none"
-                      stroke={colors[p.kind]}
-                      strokeWidth={p.w}
-                      strokeOpacity={0.65}
-                      markerEnd={`url(#arrow-${p.kind.replaceAll(" ", "-")})`}
-                    >
-                      <title>
-                        {p.kind}: {money(p.amount)}
-                      </title>
-                    </path>
-                  </g>
-                ))}
-                {nodes.map((n: any) => (
-                  <g
-                    key={n.id}
-                    role="button"
-                    tabIndex={0}
-                    aria-label={`${n.kind}: ${n.name}. Highlight connections`}
-                    aria-pressed={focusNode === n.id}
-                    onClick={() =>
-                      setFocusNode(focusNode === n.id ? null : n.id)
-                    }
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        setFocusNode(focusNode === n.id ? null : n.id);
+              {view === "sankey" ? (
+                <Sankey data={sankey} month={month} money={money} />
+              ) : (
+                <svg
+                  viewBox={`0 0 1200 ${height}`}
+                  style={{ minWidth: 1000 }}
+                  role="group"
+                  aria-label={`Money flow network for ${month}`}
+                >
+                  <defs>
+                    {Object.entries(colors).map(([kind, color]) => (
+                      <marker
+                        id={`arrow-${kind.replaceAll(" ", "-")}`}
+                        key={kind}
+                        viewBox="0 0 10 10"
+                        refX="9"
+                        refY="5"
+                        markerWidth="8"
+                        markerHeight="8"
+                        orient="auto"
+                        markerUnits="userSpaceOnUse"
+                      >
+                        <path
+                          d="M 0 0 L 10 5 L 0 10 z"
+                          fill={color as string}
+                        />
+                      </marker>
+                    ))}
+                  </defs>
+                  {paths.map((p: any, i: number) => (
+                    <g
+                      key={i}
+                      opacity={
+                        !focusNode ||
+                        p.source === focusNode ||
+                        p.target === focusNode
+                          ? 1
+                          : 0.12
                       }
-                    }}
-                    className="network-node"
-                  >
-                    <circle
-                      cx={n.x}
-                      cy={n.y}
-                      r={24}
-                      fill={focusNode === n.id ? "#18181b" : "white"}
-                      stroke="#34343c"
-                      strokeWidth={2}
-                    />
-                    <text
-                      x={n.x}
-                      y={n.y + 5}
-                      textAnchor="middle"
-                      fontSize="13"
-                      fill={focusNode === n.id ? "white" : "#18181b"}
                     >
-                      {n.kind === "Account"
-                        ? "A"
-                        : n.kind === "Income"
-                          ? "I"
-                          : "B"}
-                    </text>
-                    <text
-                      x={n.x}
-                      y={n.y + 44}
-                      textAnchor="middle"
-                      fontSize="13"
+                      <path
+                        d={p.path}
+                        fill="none"
+                        stroke={colors[p.kind]}
+                        strokeWidth={p.w}
+                        strokeOpacity={0.65}
+                        markerEnd={`url(#arrow-${p.kind.replaceAll(" ", "-")})`}
+                      >
+                        <title>
+                          {p.kind}: {money(p.amount)}
+                        </title>
+                      </path>
+                    </g>
+                  ))}
+                  {nodes.map((n: any) => (
+                    <g
+                      key={n.id}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`${n.kind}: ${n.name}. Highlight connections`}
+                      aria-pressed={focusNode === n.id}
+                      onClick={() =>
+                        setFocusNode(focusNode === n.id ? null : n.id)
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setFocusNode(focusNode === n.id ? null : n.id);
+                        }
+                      }}
+                      className="network-node"
                     >
-                      <title>{n.name}</title>
-                      {n.name.length > 30 ? n.name.slice(0, 29) + "…" : n.name}
-                    </text>
-                  </g>
-                ))}
-              </svg>
+                      <circle
+                        cx={n.x}
+                        cy={n.y}
+                        r={24}
+                        fill={focusNode === n.id ? "#18181b" : "white"}
+                        stroke="#34343c"
+                        strokeWidth={2}
+                      />
+                      <text
+                        x={n.x}
+                        y={n.y + 5}
+                        textAnchor="middle"
+                        fontSize="13"
+                        fill={focusNode === n.id ? "white" : "#18181b"}
+                      >
+                        {n.kind === "Account"
+                          ? "A"
+                          : n.kind === "Income"
+                            ? "I"
+                            : "B"}
+                      </text>
+                      <text
+                        x={n.x}
+                        y={n.y + 44}
+                        textAnchor="middle"
+                        fontSize="13"
+                      >
+                        <title>{n.name}</title>
+                        {n.name.length > 30
+                          ? n.name.slice(0, 29) + "…"
+                          : n.name}
+                      </text>
+                    </g>
+                  ))}
+                </svg>
+              )}
             </div>
           </div>
           <section className="panel">
@@ -384,18 +417,41 @@ export default function MoneyFlow({ api }: any) {
             {selected && (
               <p role="status">
                 {selected.kind}:{" "}
-                {nodes.find((n: any) => n.id === selected.source)?.name} →{" "}
-                {nodes.find((n: any) => n.id === selected.target)?.name} ·{" "}
-                {money(selected.amount)}
+                {
+                  detailGraph.nodes.find((n: any) => n.id === selected.source)
+                    ?.name
+                }{" "}
+                →{" "}
+                {
+                  detailGraph.nodes.find((n: any) => n.id === selected.target)
+                    ?.name
+                }{" "}
+                · {money(selected.amount)}
+              </p>
+            )}
+            {view === "sankey" && (
+              <p>
+                Accounts appear in two stages in Sankey view. Other funding and
+                unallocated bands are inferred balancing amounts, not verified
+                transactions or account balances. Hiding accounts removes their
+                connected flows; the filtered diagram may not balance.
               </p>
             )}
             <ul className="flow-list">
-              {network.links.map((e: any, i: number) => (
+              {detailGraph.links.map((e: any, i: number) => (
                 <li key={i}>
                   <button className="secondary" onClick={() => setSelected(e)}>
-                    {e.kind}: {nodes.find((n: any) => n.id === e.source)?.name}{" "}
-                    → {nodes.find((n: any) => n.id === e.target)?.name} ·{" "}
-                    {money(e.amount)}
+                    {e.kind}:{" "}
+                    {
+                      detailGraph.nodes.find((n: any) => n.id === e.source)
+                        ?.name
+                    }{" "}
+                    →{" "}
+                    {
+                      detailGraph.nodes.find((n: any) => n.id === e.target)
+                        ?.name
+                    }{" "}
+                    · {money(e.amount)}
                   </button>
                 </li>
               ))}

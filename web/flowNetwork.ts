@@ -37,3 +37,23 @@ export function flowNetwork(data: any, hidden: string[] = []) {
   const used = new Set(links.flatMap((e: any) => [e.source, e.target]));
   return { accounts, nodes: nodes.filter((n) => used.has(n.id)), links };
 }
+
+export function filteredSankey(data: any, hidden: string[] = []) {
+  const accountId = (id: string) =>
+    id.startsWith("before:")
+      ? `account:${id.slice(7)}`
+      : id.startsWith("after:")
+        ? `account:${id.slice(6)}`
+        : id;
+  const links = data.links.filter(
+    (e: any) =>
+      !hidden.includes(accountId(e.source)) &&
+      !hidden.includes(accountId(e.target)),
+  );
+  const used = new Set(links.flatMap((e: any) => [e.source, e.target]));
+  return {
+    ...data,
+    links,
+    nodes: data.nodes.filter((n: any) => used.has(n.id)),
+  };
+}
