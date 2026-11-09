@@ -200,3 +200,27 @@ paycheck uses its own amount). A range wider than 10% of the median is flagged.
 Without confirmed paycheck history the field stays blank. Existing saved
 expectations are preserved; **Use suggested amount** applies the estimate on
 request. Suggestions never count as received cash or increase safe to spend.
+
+## Visual system
+
+The app follows system light/dark appearance using CSS media queries from
+first paint. Zinc colors are shared across review screens, accounts, budgets,
+overviews, dialogs and charts. Body text uses the system font; financial
+figures use locally bundled Geist Mono. No external font service is required.
+Local Radix-based shadcn components live in `web/components/ui`, configured
+by `components.json`; theme tokens live in `web/theme.css`.
+
+The visual pass preserves native selects, dates, disclosures and modal behavior,
+44px control targets, browser zoom, safe areas and reduced-motion preferences.
+Dark browser QA covered all main destinations, the Money Flow dialog and its
+Escape focus return, and 320px/390px review layouts. The light palette was
+checked through an isolated built-CSS preview, without changing system settings.
+Unknown financial state wrapped without page overflow at 320px. A live system
+appearance switch, enlarged text/browser zoom and VoiceOver remain unverified;
+no accessibility conformance claim is made.
+
+Validation: 215 synthetic tests, TypeScript and isolated production build pass.
+Vite reports harmless upstream Radix `use client` directive warnings. The npm
+audit count returned to the pre-change baseline after removing the CLI runtime:
+three existing development-tool advisories (one moderate, two critical); no
+unrelated forced dependency upgrades were made in this visual pass.

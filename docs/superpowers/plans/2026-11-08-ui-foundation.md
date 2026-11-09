@@ -75,3 +75,55 @@ All approved scope is covered above: theme/dependencies in Task 1, app-wide
 presentation and review hierarchy in Task 2, visual and regression evidence
 in Task 3. No bank/provider/backend changes are planned. Exact versions and
 CLI flags come from the installed tooling, not assumptions about old docs.
+
+## Execution record
+
+Implemented inline on the existing `codex/paycheck-review` branch. The owner
+approved the design and execution with "yup go ahead". Planning commit:
+`8ec0bb9`; complete visual foundation/application commit: `963f96e`.
+
+The current CLI uses `--base radix --preset nova`; it records `radix-nova` in
+components.json. Ran the base-color migration to Zinc and generated seven
+local primitives. Removed the generated unused Geist Sans, icon package and
+CLI runtime dependency. Local components depend on the maintained Radix
+package and generated class utilities; all fonts bundle from npm assets.
+Foundation and app styling were committed together to avoid an intermediate
+Tailwind-reset state with unreadable legacy screens.
+
+Changed presentation/configuration only. No backend, bank access, database,
+financial calculation, authorization or workflow persistence changes. Applied
+semantic tokens throughout legacy CSS and SVG graphs. Kept native web controls,
+reduced-motion handling, focus outlines and >=44px review controls. Restored
+native modal centering after the Tailwind reset removed its default margin.
+
+Observed verification:
+
+- 215 JavaScript tests pass in 38 files; typecheck passes.
+- Isolated production build passes at `/tmp/budget-zinc-build`; Geist Mono
+  WOFF2 assets are present and browser font-family inspection confirms use.
+- Actual browser system preference was dark; body background resolved to the
+  intended dark Zinc token. Dark QA visited every main destination.
+- Browser review checked 390px and 320px; the latter had scroll width equal
+  to viewport width and no visible review controls below 44px.
+- Unknown-amount text remained within 320px. Dialog background matched dark
+  tokens, was centered, and Escape restored focus to Settings.
+- Light Review and Money Flow dialog inspected via a temporary isolated
+  built-CSS palette preview. No user system setting was changed.
+- Synthetic desktop/mobile screenshots saved outside the repo under `/tmp`.
+- Relevant HIG accessibility, typography, layout, buttons, color and writing
+  sections were consulted from the official Markdown fetched in this session.
+  CSS pixels, native controls and disclosure are intentional web adaptations.
+
+Remaining gaps: actual live system appearance switching, VoiceOver, effective
+large-text/zoom testing, every native-control/error combination in both themes,
+and actual-device verification. No accessibility conformance claim.
+
+No decorative class snapshot tests were added. All existing behavior tests
+passed after shared-control integration. npm audit is back to its initial
+three development-tool advisories after removing the CLI runtime; broad
+breaking test-tool upgrades are outside this change. No production data,
+credentials or generated build output is committed.
+
+Inline Ninth House review ran with the owner's model waiver. Verdict: proceed
+with the visual pass and keep the verification gaps explicit. Work remains
+local and unpushed.

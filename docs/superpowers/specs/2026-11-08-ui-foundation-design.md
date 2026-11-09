@@ -1,6 +1,7 @@
 # Zinc UI foundation and aesthetic pass
 
-Status: approved by owner ("yup go ahead"). Owner chose "Follow the system".
+Status: approved by owner ("yup go ahead") and implemented. Owner chose
+"Follow the system". See the implementation plan for verification and gaps.
 
 ## Visual direction
 

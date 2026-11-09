@@ -1516,4 +1516,11 @@ footer {
   color: var(--muted-foreground);
 }
 /* Tailwind's reset removes the browser's automatic modal centering. */
-dialog { margin:auto; }
+dialog {
+  margin: auto;
+}
+.review-summary-heading [data-slot="badge"] {
+  height: auto;
+  min-height: 1.625rem;
+  overflow: visible;
+}
