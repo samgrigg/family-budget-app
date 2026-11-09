@@ -49,9 +49,10 @@ tunnel to solve this implicitly. Confirm refresh expectations in the design.
 
 - [x] Confirm data needs and inspect Dashboard configuration.
 - [x] Consult scope and implementation guidance.
-- [ ] Obtain owner approval of the proposed review design and integration
-  surface (GUIDE-020); API paths remain undesigned rather than silently added.
-- [ ] Write the detailed implementation plan after design approval.
+- [x] Obtain owner approval of the review design ("yes that looks good").
+- [x] Write the detailed implementation plan after design approval.
+- [ ] Confirm the plan's concrete integration surface through execution
+  selection (GUIDE-020); proposed paths are recorded in the implementation plan.
 - [ ] Implement optional Liabilities ingestion, cached provenance, manual
   fallbacks, and field-level errors without changing existing transactions.
 - [ ] Run acceptance on the actual changed code and verify Sandbox journeys.
@@ -81,5 +82,6 @@ review-model requirement was waived for this round. No payment initiation.
 
 ## Open questions
 
-Owner review of the draft UX/data design; connected-card field coverage;
-manual fallback and explicit-refresh expectations; integration API surface.
+Execution approach and the proposed concrete integration surface;
+connected-card field coverage. The owner approved the manual fallback and
+explicit-refresh approach as part of the design.

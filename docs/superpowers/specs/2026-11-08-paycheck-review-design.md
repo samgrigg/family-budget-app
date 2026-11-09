@@ -1,6 +1,7 @@
 # Paycheck review: proposed UX and data design
 
-Status: draft for owner review; no app implementation yet.
+Status: approved by the owner on 2026-11-08 ("yes that looks good");
+no app implementation yet.
 Basis: [agreed use case](2026-11-08-paycheck-review-use-case.md).
 
 ## Current UX gaps
@@ -177,6 +178,6 @@ consumes its reservation without reducing safe to spend twice.
 5. Verify the complete review on narrow screens, keyboard, large text, and
    VoiceOver; document unverified checks and commit logical changes.
 
-The implementation plan follows owner review of this draft. In particular,
-the proposed manual statement fallback, default destination, payday boundary,
-and incomplete-result behavior have not yet been approved as UI decisions.
+The owner approved this design, including the manual statement fallback,
+default destination, payday boundary, and incomplete-result behavior.
+The implementation plan defines the concrete module and API contracts.
