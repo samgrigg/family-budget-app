@@ -13,3 +13,12 @@ Preserve the owner's mobile-first, sparse, utilitarian startup aesthetic. Apply 
 - Review relevant current HIG sections when changing UI. Document intentional web-specific adaptations and verification gaps.
 
 Reference sections: accessibility, typography, layout, buttons, color, and writing. HIG is guidance, not a certification; do not claim complete compliance based only on source inspection or a build.
+
+# Git workflow
+
+- Commit each completed, verified logical change.
+- Commit messages must start with a one-line description of the result, no more than 72 characters. On the immediately following line, include the owner's request that prompted the work, preserving its wording. Do not insert a blank line between the description and request.
+- If the relevant request or how to assemble the message is unclear, ask the owner for clarification.
+- Keep unrelated changes separate. Do not commit incomplete work solely to create a checkpoint unless requested.
+- Before committing, inspect the staged file list and diff; exclude credentials, local financial data, databases, certificates, and generated dependencies/build output.
+- Report the commit hash when finishing implementation work. Push only when requested.

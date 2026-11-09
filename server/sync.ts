@@ -5,13 +5,19 @@ export async function syncConnection(
   id: string,
   fetchPage: (cursor?: string) => Promise<any>,
   accounts: any[] = [],
+  authoritativeAccounts = false,
 ) {
   let set = locks.get(store);
   if (!set) locks.set(store, (set = new Set()));
   if (set.has(id)) throw Error("Import already running");
   set.add(id);
   try {
-    const start = store.connection(id).cursor ?? undefined;
+    const connection = store.connection(id);
+    if (!connection.token || connection.status === "historical")
+      throw Object.assign(Error("Source is disconnected"), {
+        code: "DISCONNECTED",
+      });
+    const start = connection.cursor ?? undefined;
     for (let attempt = 0; attempt < 3; attempt++) {
       let cursor = start;
       const pages: any[] = [];
@@ -21,7 +27,7 @@ export async function syncConnection(
           pages.push(p);
           cursor = p.next_cursor;
           if (!p.has_more) {
-            store.commit(id, pages, cursor!, accounts);
+            store.commit(id, pages, cursor!, accounts, authoritativeAccounts);
             return;
           }
         }

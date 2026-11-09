@@ -42,7 +42,7 @@ The server binds to 127.0.0.1 and is intended for use by one person on this comp
 
 **Disconnect & delete** calls Plaid's `/item/remove` before deleting local connection/account/transaction rows. A failed revocation leaves the connection available for retry. SQLite deletion is logical deletion, not guaranteed forensic erasure from disk or backups. Plaid/institution retention policies also apply.
 
-The table shows up to 2,000 stored transactions, newest first. Amounts are stored as decimal text with currency; positive is money out, negative is money in. No totals or floating-point financial arithmetic are performed. Available history depends on the institution; the Link request asks for 90 days.
+The table shows up to 2,000 stored transactions, newest first. Amounts are stored as decimal text with currency; positive is money out, negative is money in. No totals or floating-point financial arithmetic are performed. Available history depends on the institution. New connections request 12 months (365 days); existing sources retain their original 90-day request. Analysis windows and Sync do not request older history. In Data access, Replace for longer history prepares a resumable flow: explicitly revoke old access, authorize a new source, import, confirm account matches or distinct accounts, and reconcile. Saved history stays available during reconnection. Confirmed account links and classifications survive cancellation and can be reviewed/unlinked in Accounts. Replacement imports stay excluded from estimates until final review completes.
 
 ## Checks and production build
 
@@ -58,3 +58,47 @@ No live API checks run without credentials and owner consent. Passing automated 
 - [Plaid OAuth and redirect requirements](https://plaid.com/docs/link/oauth/)
 - [Transactions Sync reference](https://plaid.com/docs/api/products/transactions/)
 - [Plaid Trial eligibility](https://support.plaid.com/hc/en-us/articles/39994173227159-What-is-the-Plaid-Trial-plan)
+
+## Bills worksheet import
+
+Stage the existing worksheet locally (Python 3, standard library only):
+
+```sh
+python3 scripts/stage-bills.py "/absolute/path/to/your/workbook.xlsx"
+```
+
+Restart the app, then open **Budget → Planned commitments**. The staging command reads only the Bills tab and writes `data/bills-import.json`, which is private and ignored by Git. It never edits the workbook or confirms entries. The importer targets this workbook's existing layout: account groups in A/B and E/F, annual subscriptions in N/O, and auto-transfers in Q/R/S. It is not a general Excel importer.
+
+Expand an entry, review its actual payment amount, account, frequency, optional day and notes, then confirm or exclude it. Zero amounts and unknown frequencies cannot be confirmed. Annual subscription accounts are blank until supplied; currency initially assumes USD. Auto-transfers cannot count as bills unless explicitly reclassified. Possible duplicate plans use normalized name matching against other confirmed plans; different merchant names can still describe the same obligation, so review both lists. Matching confirmed transaction patterns are shown as historical context and do not block plan confirmation, because history estimates are separate from planned totals. Acknowledgement is required only for another confirmed plan and permits a separate commitment, not an automatic merge.
+
+Bills Overview shows confirmed plan funding by account and currency, including monthly set-asides for quarterly, semiannual and annual payments. The observed history estimate remains separate: do not add it to planned totals. Plans retain worksheet account labels without linking them to bank identities. Payment days are retained as entered, not used to assert contractual due dates.
+
+Reviewed decisions persist in SQLite per environment and source cell. Re-staging refreshes unreviewed drafts; saved decisions take precedence. Excluded entries retain their edited details locally, disappear from the Budget list and do not contribute to funding totals. A restore interface is not yet provided. Import only the original layout: moving rows in the workbook changes cell-based identities. Do not commit staging files or the local database.
+
+Checks: `python3 -m unittest discover -s tests -p '*_test.py'` plus the usual npm checks. VoiceOver, enlarged text and live-browser review of the new forms remain outstanding.
+
+## Variable monthly bills and credit card payments
+
+In a bill's review form, choose **Variable monthly amount** to confirm a recurring obligation whose amount is unknown. Leave the planning estimate blank for unknown, or enter an optional estimate. A fixed zero retains its old meaning and still needs correction before confirmation; choosing variable explicitly makes it an unknown commitment.
+
+Use **Planning month** to select the payment cycle. Under **Payment for YYYY-MM**, enter its date and known payment amount once available. Optionally select the actual posted outgoing transaction: its amount takes precedence. Payment cycles from earlier months remain saved. One payment per bill per calendar month is currently supported, for monthly bills only. Blank cycle fields remove that month's saved payment on save; they do not erase other months. Estimates remain labeled estimates. Missing or invalidated transaction evidence falls back to the saved payment amount and is flagged.
+
+For card repayments, choose **Counts as → Credit card payment (funding only)**. These amounts contribute to account funding and are excluded from planned expenses. Optionally select the linked card account and, after payment, link the bank-account debit. Money Flow preserves existing uniquely matched debt routes and treats explicitly linked repayments as movements rather than additional purchase expenses. With no matching card credit, a selected destination is a modeled route; without a linked card it is shown separately as a repayment with purchase history unavailable. No balance or statement retrieval is added.
+
+A transaction link also identifies that transaction's existing recurring bill series as a repayment in the observed Bills Overview: it remains on the timeline but is excluded from expense estimates. Unlinked, unmatched repayments cannot be classified from a manually entered bill name alone. Review/link those payments before relying on expense totals. Planned expenses cover confirmed bill plans, not all household purchases; plans and observed history are never summed together.
+
+For unused cards with balance-transfer debt, choose **Credit card payment (debt payoff)**. Existing **Credit card payment (purchases)** entries keep their previous meaning. Both types count in account funding; Planned Expenses lists debt payoff separately from expenses, with estimates and unknown amounts labeled. The whole debt payment is tracked without splitting principal, interest and fees. Link the posted bank debit to distinguish actual debt payoff in Money Flow and the observed bill timeline. No saved bills are automatically reclassified.
+
+## Merge duplicate planned bills
+
+When another confirmed plan is flagged, choose **Yes, this is a duplicate — review merge**. Select the existing bill to keep, compare details, and choose whose bill details should win. Choose explicitly between conflicting payments in the same month, then click **Merge bills**. Notes, compatible payment cycles, posted evidence and worksheet references are retained. The existing bill remains confirmed and counts once; the duplicate disappears and cannot return on worksheet re-import. The separate-commitment checkbox remains available for bills that happen to share a name but are genuinely different.
+
+Merges require the same currency and validate the resulting plan. A stale preview must be reviewed again. Original snapshots and source aliases remain in the local database for recovery; there is no undo interface yet. Restart the app after updating to load the merge routes and metadata table.
+
+An imported auto-transfer flagged as a duplicate can also merge into its confirmed bill. That merge always keeps the bill’s details and payment history. Transfer notes/references are retained; transfer payment records remain in merge history and do not replace bill payments.
+
+## Find supporting transactions
+
+Expand a bill under **Budget → Planned Commitments**, then click **Find supporting transactions**. It immediately searches included local posted outflows by the bill description or full payment amount. Refine the description, amount, account/date filters, or require both description and amount. Results show why they matched and flag confirmed account transfers as funding movements. Credit card repayment searches use bank debits only.
+
+Search covers all eligible stored history, with 50 candidates per page, and does not fetch more bank data. Results are candidates, not automatically attached evidence; searching never changes the bill or bank transactions. Saved changes to the bill or planning month reset the search scope. Restart the app after updating to load the new search endpoint.

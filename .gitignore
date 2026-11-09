@@ -7,3 +7,7 @@ data/
 certs/
 *.sqlite*
 .DS_Store
+
+migration-backups/
+
+__pycache__/
