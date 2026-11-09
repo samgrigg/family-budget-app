@@ -4,9 +4,31 @@ export function billPlanSubmission(
   month: string,
   status: string,
 ) {
-  const paymentDate = String(values.get("paymentDate") ?? ""),
+  const expectedChargeCount = Number(
+    values.get("expectedChargeCount") ?? row.expectedChargeCount ?? 1,
+  );
+  const labels = values.getAll("chargeLabel");
+  const existing = row.payments?.find((p: any) => p.date.slice(0, 7) === month);
+  const charges = values
+    .getAll("chargeKey")
+    .map((key, i) => ({
+      ...existing?.charges?.find((c: any) => c.key === key),
+      key: String(key),
+      label: String(labels[i] ?? ""),
+    }))
+    .filter((c) => c.key);
+  const grouped =
+    expectedChargeCount > 1 ||
+    values.get("groupedCharges") === "on" ||
+    values.has("chargeKey");
+  let paymentDate = String(values.get("paymentDate") ?? ""),
     paymentAmount = String(values.get("paymentAmount") ?? ""),
-    actualTransactionKey = String(values.get("actualTransactionKey") ?? "");
+    actualTransactionKey = grouped
+      ? ""
+      : String(values.get("actualTransactionKey") ?? "");
+  if (grouped && charges.length && !paymentDate) paymentDate = `${month}-01`;
+  // A default full amount alone does not create a cycle.
+  if (grouped && !paymentDate && !charges.length) paymentAmount = "";
   if (
     (paymentDate || paymentAmount || actualTransactionKey) &&
     (!paymentDate || !paymentAmount || paymentDate.slice(0, 7) !== month)
@@ -16,6 +38,7 @@ export function billPlanSubmission(
     );
   return {
     ...row,
+    expectedChargeCount,
     name: values.get("name"),
     accountName: values.get("accountName"),
     amount: values.get("amount"),
@@ -37,6 +60,7 @@ export function billPlanSubmission(
             {
               date: paymentDate,
               amount: paymentAmount,
+              ...(grouped ? { expectedChargeCount, charges } : {}),
               ...(actualTransactionKey ? { actualTransactionKey } : {}),
             },
           ]

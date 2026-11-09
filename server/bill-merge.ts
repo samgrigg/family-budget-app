@@ -21,11 +21,19 @@ const editable = [
   "amountMode",
   "planningEstimate",
   "payments",
+  "expectedChargeCount",
   "expenseType",
   "creditAccountId",
 ];
 function compatiblePayment(a: BillPayment, b: BillPayment) {
   return (
+    JSON.stringify(
+      a.charges?.slice().sort((a, b) => a.key.localeCompare(b.key)),
+    ) ===
+      JSON.stringify(
+        b.charges?.slice().sort((a, b) => a.key.localeCompare(b.key)),
+      ) &&
+    a.expectedChargeCount === b.expectedChargeCount &&
     a.date === b.date &&
     a.amount === b.amount &&
     (!a.actualTransactionKey ||

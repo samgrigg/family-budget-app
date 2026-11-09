@@ -353,3 +353,31 @@ it("does not replace bill details with a funding-only transfer record", () => {
   expect(planState(s, [transfer]).records).toHaveLength(2);
   s.db.close();
 });
+
+it("requires an explicit choice for different grouped charge evidence in the same month", () => {
+  const s = setup();
+  const groupedTarget = {
+    ...target,
+    expectedChargeCount: 4,
+    payments: [{ ...target.payments[0], expectedChargeCount: 4, charges: [] }],
+  };
+  savePlan(s, groupedTarget, []);
+  const source = { ...duplicate, payments: target.payments };
+  const preview = previewBillMerge(s, [source], {
+    sourceId: source.id,
+    targetId: target.id,
+  });
+  expect(preview.conflictingMonths).toEqual(["2026-10"]);
+  mergeBills(s, [source], {
+    sourceId: source.id,
+    targetId: target.id,
+    version: preview.version,
+    prefer: "target",
+    cycleChoices: { "2026-10": "target" },
+  });
+  expect(storedPlans(s)[0]).toMatchObject({
+    expectedChargeCount: 4,
+    payments: [{ expectedChargeCount: 4, charges: [] }],
+  });
+  s.db.close();
+});
