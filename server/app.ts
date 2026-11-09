@@ -1,3 +1,4 @@
+import { installPaycheckApi } from "./paycheck-api";
 import { installBillEvidenceApi } from "./bill-evidence";
 import { installBillMergeApi } from "./bill-merge";
 import { installBillPlanApi, annotateRepayments, type Plan } from "./bill-plan";
@@ -204,6 +205,7 @@ export function createApp(
     res.json({ ok: true });
   });
   installBillPlanApi(app, store, billDrafts);
+  installPaycheckApi(app, store, billDrafts);
   installBillMergeApi(app, store, billDrafts);
   installBillEvidenceApi(app, store, billDrafts);
   app.get("/api/bills", (req, res) => {

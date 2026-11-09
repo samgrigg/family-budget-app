@@ -152,6 +152,8 @@ export function validateReviewLedger(s: Store, l: ReviewLedger) {
   }
   for (const st of l.settlements) {
     const p = paycheck(st.paycheckId);
+    if (p.state !== "received")
+      fail("Record payments only against a received paycheck.");
     money(st.amountMinor);
     if (
       typeof st.confirmed !== "boolean" ||
@@ -178,6 +180,7 @@ export function validateReviewLedger(s: Store, l: ReviewLedger) {
     );
     if (
       debits.length !== 1 ||
+      debits[0].date < p.date ||
       parseReviewMoney(debits[0].amount) !== st.amountMinor
     )
       fail("Link one matching debit from the paycheck account.");

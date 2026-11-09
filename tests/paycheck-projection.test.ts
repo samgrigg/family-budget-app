@@ -106,3 +106,44 @@ it("parses exact cents and rejects invalid financial input", () => {
   for (const value of ["1e3", "NaN", "-1", "1.001", "9007199254740992"])
     expect(() => parseReviewMoney(value)).toThrow();
 });
+it("does not promise future cash already needed for its own commitments", () => {
+  const l = fundedLedger();
+  l.obligations[2].amountMinor = 90000;
+  l.contributions[2].amountMinor = 70000;
+  l.sources.push({
+    id: "adobe",
+    name: "Adobe",
+    accountId: "etrade",
+    incomeKey: null,
+  });
+  l.paychecks.push({
+    ...l.paychecks[0],
+    id: "future",
+    sourceId: "adobe",
+    state: "expected",
+    transactionId: null,
+    date: "2026-11-19",
+    nextPayday: "2026-12-03",
+    amountMinor: 20000,
+  });
+  l.obligations.push({
+    ...l.obligations[0],
+    id: "future-rent",
+    fundingSourceId: "adobe",
+    accountId: "etrade",
+    amountMinor: 20000,
+    dueDate: "2026-11-25",
+    neededBy: "2026-11-25",
+  });
+  l.contributions.push({
+    id: "future-card",
+    paycheckId: "future",
+    obligationId: "later",
+    paymentAccountId: "etrade",
+    amountMinor: 20000,
+    neededBy: "2026-12-09",
+  });
+  expect(projectReview(l, "macu-pay", "2026-11-08").unassignedCardMinor).toBe(
+    20000,
+  );
+});

@@ -137,3 +137,23 @@ adaptation of HIG [layout](https://developer.apple.com/design/human-interface-gu
 and [accessibility](https://developer.apple.com/design/human-interface-guidelines/accessibility)
 guidance. Full keyboard traversal, enlarged text/browser zoom and VoiceOver
 remain unverified; these checks do not establish accessibility conformance.
+
+## Paycheck review
+
+Paycheck Review is the default page. Set up Canyons/MACU and Adobe/Etrade with
+their actual deposit accounts, then select an arrived deposit and confirm that
+source’s next payday. Add predictable obligations due before replenishment,
+then last-statement and later-purchase card obligations as separate amounts.
+Use existing planned commitments and transaction history to confirm inputs.
+Reserve current cash first; assign future paycheck funding explicitly only
+when needed. Future income never increases safe to spend.
+
+Save incomplete reviews and return later. Each card’s funding is shared
+between reviews. Record a posted debit against its reservation when paid;
+record other cash spending separately. Do not record a card purchase again
+as a direct-cash commitment. Confirm card totals include fees/refunds and
+exclude overlap with other entries. Earlier unreserved paycheck leftovers
+stay separate; old unpaid reservations remain attached to their obligations.
+Reservations do not move money. Changed bank evidence or conflicting saves
+require another review. Unknown or unassigned spending prevents a definitive
+safe-to-spend result. The first release supports USD.

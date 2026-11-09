@@ -1,3 +1,4 @@
+import PaycheckReview from "./PaycheckReview";
 import BudgetTabs, { type BudgetTab } from "./BudgetTabs";
 import BillPlan from "./BillPlan";
 import {
@@ -30,17 +31,19 @@ export default function App() {
   const [accountFilter, setAccountFilter] = useState("");
   const [route, setRoute] = useState(location.hash);
   const page =
-    route.startsWith("#accounts") ||
-    route.startsWith("#data-access") ||
-    route.startsWith("#institutions")
-      ? "accounts"
-      : route === "#money-flow"
-        ? "money-flow"
-        : route === "#income-overview"
-          ? "income-overview"
-          : route === "#bills-overview"
-            ? "bills-overview"
-            : "budget";
+    route === "" || route === "#paycheck-review"
+      ? "paycheck-review"
+      : route.startsWith("#accounts") ||
+          route.startsWith("#data-access") ||
+          route.startsWith("#institutions")
+        ? "accounts"
+        : route === "#money-flow"
+          ? "money-flow"
+          : route === "#income-overview"
+            ? "income-overview"
+            : route === "#bills-overview"
+              ? "bills-overview"
+              : "budget";
   useEffect(() => {
     const navigate = () => {
       setRoute(location.hash);
@@ -53,7 +56,7 @@ export default function App() {
     return () => window.removeEventListener("hashchange", navigate);
   }, []);
   useEffect(() => {
-    document.title = `${page === "accounts" ? "Accounts" : page === "money-flow" ? "Money Flow" : page === "income-overview" ? "Income Overview" : page === "bills-overview" ? "Bills Overview" : "Budget"} · Family Budget`;
+    document.title = `${page === "paycheck-review" ? "Paycheck Review" : page === "accounts" ? "Accounts" : page === "money-flow" ? "Money Flow" : page === "income-overview" ? "Income Overview" : page === "bills-overview" ? "Bills Overview" : "Budget"} · Family Budget`;
   }, [page]);
   const csrf = useRef("");
   const handler = useRef<any>(null);
@@ -292,6 +295,12 @@ export default function App() {
         </a>
       </header>
       <nav className="page-nav" aria-label="Main navigation">
+        <a
+          href="#paycheck-review"
+          aria-current={page === "paycheck-review" ? "page" : undefined}
+        >
+          Paycheck Review
+        </a>
         <a href="#budget" aria-current={page === "budget" ? "page" : undefined}>
           Budget
         </a>
@@ -320,6 +329,7 @@ export default function App() {
           Money Flow
         </a>
       </nav>
+      {page === "paycheck-review" && <PaycheckReview api={api} />}
       {page === "budget" && <DataIssues issues={state?.dataIssues} />}
       {page === "money-flow" && <MoneyFlow api={api} />}
       {page === "income-overview" && (

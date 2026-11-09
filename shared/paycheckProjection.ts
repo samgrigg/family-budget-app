@@ -39,7 +39,27 @@ export function projectReview(
         issue("SETTLEMENT_EXCESS", c.id, "Payment exceeds its reservation.");
       reserved += Math.max(0, c.amountMinor - consumed);
     }
-    const remaining = pay.amountMinor - spent - reserved;
+    let implicitCommitments = 0;
+    if (pay.state === "expected") {
+      for (const o of l.obligations.filter(
+        (o) =>
+          o.kind === "commitment" &&
+          o.fundingSourceId === pay.sourceId &&
+          (!o.dueDate ||
+            (o.dueDate >= pay.date && o.dueDate <= pay.nextPayday)),
+      )) {
+        if (o.amountMinor === null || !o.confirmed || !o.dueDate) {
+          issue("UNKNOWN", o.id, "Confirm the future paycheck’s commitments.");
+          implicitCommitments = pay.amountMinor;
+          break;
+        }
+        const assigned = l.contributions
+          .filter((c) => c.obligationId === o.id && c.paycheckId === pay.id)
+          .reduce((n, c) => n + c.amountMinor, 0);
+        implicitCommitments += Math.max(0, o.amountMinor - assigned);
+      }
+    }
+    const remaining = pay.amountMinor - spent - reserved - implicitCommitments;
     capacities.set(pay.id, remaining);
     if (remaining < 0)
       issue(
