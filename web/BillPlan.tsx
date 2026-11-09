@@ -30,11 +30,15 @@ export default function BillPlan({
     message: string;
     duplicatePlans?: any[];
   } | null>(null);
+  const [entryKinds, setEntryKinds] = useState<Record<string, string>>({});
   const [formVersions, setFormVersions] = useState<Record<string, number>>({});
   const [month, setMonth] = useState(() => {
     const today = new Date();
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
   });
+  const entryKindKey = (r: any) =>
+    `${r.id}:${month}:${formVersions[r.id] ?? 0}`;
+  const entryKind = (r: any) => entryKinds[entryKindKey(r)] ?? r.kind;
   const endpoint = `/bill-plan?month=${month}`;
   const heading = useRef<HTMLHeadingElement>(null);
   const entries = useRef(new Map<string, HTMLDetailsElement>());
@@ -87,6 +91,7 @@ export default function BillPlan({
   }, [revision, month]);
   async function save(row: any, form: HTMLFormElement, status: string) {
     const values = new FormData(form);
+    const transfer = values.get("kind") === "transfer";
     setBusy(true);
     setError("");
     setNotice("");
@@ -97,7 +102,9 @@ export default function BillPlan({
       setAdvanceFrom(row.id);
       setNotice(
         status === "confirmed"
-          ? "Bill confirmed. Funding totals updated."
+          ? transfer
+            ? "Transfer confirmed. Excluded from bill and funding totals."
+            : "Bill confirmed. Funding totals updated."
           : status === "excluded"
             ? "Bill details saved. Excluded from Budget and funding totals."
             : "Changes saved for review.",
@@ -308,12 +315,6 @@ export default function BillPlan({
                         </ul>
                       </details>
                     )}
-                    {r.kind === "transfer" && (
-                      <p>
-                        Auto-transfer: excluded from bill totals. Keep this as a
-                        transfer to avoid counting the funded bill twice.
-                      </p>
-                    )}
                     <p>
                       {r.resolvedAmount.amount === null
                         ? "Amount unknown"
@@ -472,6 +473,7 @@ export default function BillPlan({
                         />
                       </label>
                       <BillClassificationFields
+                        kind={entryKind(r)}
                         expenseType={r.expenseType}
                         creditAccountId={r.creditAccountId}
                         accounts={data.creditAccounts}
@@ -489,7 +491,16 @@ export default function BillPlan({
                       </label>
                       <label>
                         Entry type
-                        <select name="kind" defaultValue={r.kind}>
+                        <select
+                          name="kind"
+                          value={entryKind(r)}
+                          onChange={(e) =>
+                            setEntryKinds((k) => ({
+                              ...k,
+                              [entryKindKey(r)]: e.target.value,
+                            }))
+                          }
+                        >
                           <option value="bill">Bill commitment</option>
                           <option value="transfer">
                             Auto-transfer (not a bill)
@@ -560,7 +571,11 @@ export default function BillPlan({
                         />
                       )}
                       <div className="actions">
-                        <button disabled={busy}>Confirm bill</button>
+                        <button disabled={busy}>
+                          {entryKind(r) === "transfer"
+                            ? "Confirm transfer"
+                            : "Confirm bill"}
+                        </button>
                         <button
                           type="button"
                           className="secondary"

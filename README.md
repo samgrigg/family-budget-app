@@ -102,3 +102,12 @@ An imported auto-transfer flagged as a duplicate can also merge into its confirm
 Expand a bill under **Budget → Planned Commitments**, then click **Find supporting transactions**. It immediately searches included local posted outflows by the bill description or full payment amount. Refine the description, amount, account/date filters, or require both description and amount. Results show why they matched and flag confirmed account transfers as funding movements. Credit card repayment searches use bank debits only.
 
 Search covers all eligible stored history, with 50 candidates per page, and does not fetch more bank data. Results are candidates, not automatically attached evidence; searching never changes the bill or bank transactions. Saved changes to the bill or planning month reset the search scope. Restart the app after updating to load the new search endpoint.
+
+For a planned auto-transfer, choose **Entry type → Auto-transfer (not a bill)**
+and **Confirm transfer**. Expense and card classification controls are hidden;
+the transfer stays recorded but contributes nothing to bill or funding totals.
+Switching back to a bill restores its classification controls. The existing
+semantic web select and button remain in use, with direct action labels guided
+by Apple HIG writing guidance. This change was checked with server-rendered
+component tests, persistence/totals regression tests, typecheck and build;
+interactive browser, enlarged-text, keyboard and VoiceOver checks are unverified.
