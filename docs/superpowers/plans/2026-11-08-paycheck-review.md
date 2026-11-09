@@ -439,3 +439,46 @@ No plan step authorizes real payments, public hosting, production data
 modifications, goal management, expected discretionary spending, or an
 aesthetic redesign. The owner's waiver permits the current model to perform
 both Ninth House review voices for this round.
+
+## Execution record — 2026-11-08
+
+Owner selected inline work in this chat and a new branch in the existing
+checkout. Implemented Tasks 1–4; Task 5 automated and scoped browser checks
+are complete, with the live and accessibility checks below outstanding.
+
+- `df346be`: shared integer-money projection and financial scenarios.
+- `43622fe`: environment-scoped ledger, revisions and canonical evidence.
+- `d198231`: resumable manual review, adjustable shared funding, and routing.
+- `15a3445`: card-data integration, including explicit consent,
+  cached suggestions, purchase assignment and bank-debit reconciliation.
+
+Execution adaptations: the projection lives in `shared/paycheckProjection.ts`
+from the start so browser/server share one implementation. Repository and
+projection tests are consolidated into their named test files. The bounded
+POST command format is used throughout. `web/ReviewObligationForm.tsx` isolates
+obligation editing. Additional bank/card evidence checks were added after
+synthetic-browser QA reproduced overstated remaining cash when evidence was
+unassigned. Old reservations are not released on statement edits or payments;
+statement rollover is owner-confirmed through obligation editing rather than
+an automated guess at the next cycle. This remains a manual-review workflow.
+
+Observed results: 208 JS tests pass in 35 files, one Python test passes,
+typecheck passes, isolated Vite build passes. Browser used synthetic in-memory
+data and verified start/save/resume/finish, card purchase assignment, 390px and
+320px layouts, no narrow horizontal overflow, keyboard skip-link heading focus,
+and date-control heights >=44px after correction. Later evidence safeguards
+also have API regression coverage. No production data, settings, or served
+build was modified.
+
+Outstanding: real Sandbox consent/product flow, actual connected-card field
+coverage, VoiceOver, effective enlarged text/zoom, every keyboard/error route,
+and actual devices. Browser zoom shortcuts did not establish a measurable
+zoom change, so that check is not marked passed. The broader Plaid acceptance
+has seven failures recorded in root PLAID_PLAN.md. Native web controls,
+disclosures, wrapping content and CSS-pixel targets are intentional web HIG
+adaptations; no native appearance imitation or conformance claim.
+
+Final review was inline as the owner selected. Both Ninth House voices ran
+with the current model under the owner's waiver. They called out the bank/card
+reconciliation guards and required the remaining verification gaps to stay
+explicit. No PR, push or merge is authorized by execution alone.

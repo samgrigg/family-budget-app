@@ -1,7 +1,9 @@
 # Paycheck review: proposed UX and data design
 
 Status: approved by the owner on 2026-11-08 ("yes that looks good");
-no app implementation yet.
+implemented on `codex/paycheck-review`; verification evidence and remaining
+live/accessibility gaps are recorded in the implementation plan and root
+`PLAID_PLAN.md`.
 Basis: [agreed use case](2026-11-08-paycheck-review-use-case.md).
 
 ## Current UX gaps

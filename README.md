@@ -157,3 +157,27 @@ stay separate; old unpaid reservations remain attached to their obligations.
 Reservations do not move money. Changed bank evidence or conflicting saves
 require another review. Unknown or unassigned spending prevents a definitive
 safe-to-spend result. The first release supports USD.
+
+In **Card statement data**, use **Refresh card data** for cached statement
+suggestions. If additional consent is needed, save your review and choose
+**Authorize card data**. This reuses the existing resumable bank authorization
+flow. Null or unsupported fields stay unknown; manual confirmation remains
+available. Imported statement balances are original balances, not proof of
+what is still unpaid. Existing account repairs do not request new card access.
+
+Assign imported card purchases to a single obligation using **Assign imported
+card purchases and credits**. Each purchase can be linked once. Cash movements
+must also be accounted for as an obligation payment or other cash use before
+safe to spend is shown. Money moved aside reduces this paycheck's available
+cash; these review records do not reclassify the underlying transactions.
+A future paycheck can be confirmed against its actual deposit without losing
+its funding promises. Correct contributions if its amount or timing changed.
+
+Verification for this increment: 208 synthetic JavaScript tests and the Python
+import test pass; TypeScript and an isolated Vite build pass. Browser testing
+used an in-memory synthetic database at 390px and 320px, including start,
+obligation creation, purchase assignment, reservations, save/resume, and finish.
+Keyboard skip-link focus worked; date inputs were corrected to at least 44px.
+VoiceOver, effective enlarged text/zoom, every error path, actual-device use,
+and real Sandbox consent/statement retrieval remain unverified. No real bank
+data or credentials were used for this verification.

@@ -51,11 +51,12 @@ tunnel to solve this implicitly. Confirm refresh expectations in the design.
 - [x] Consult scope and implementation guidance.
 - [x] Obtain owner approval of the review design ("yes that looks good").
 - [x] Write the detailed implementation plan after design approval.
-- [ ] Confirm the plan's concrete integration surface through execution
+- [x] Confirm the plan's concrete integration surface through execution
   selection (GUIDE-020); proposed paths are recorded in the implementation plan.
-- [ ] Implement optional Liabilities ingestion, cached provenance, manual
+- [x] Implement optional Liabilities ingestion, cached provenance, manual
   fallbacks, and field-level errors without changing existing transactions.
-- [ ] Run acceptance on the actual changed code and verify Sandbox journeys.
+- [x] Run acceptance on the actual changed code; record failed checks.
+- [ ] Verify the live Sandbox journeys listed below.
 
 ## Acceptance
 
@@ -82,6 +83,54 @@ review-model requirement was waived for this round. No payment initiation.
 
 ## Open questions
 
-Execution approach and the proposed concrete integration surface;
-connected-card field coverage. The owner approved the manual fallback and
+Connected-card field coverage and the live/accessibility verification listed
+below. Execution is inline and the implemented surface is recorded below. The owner approved the manual fallback and
 explicit-refresh approach as part of the design.
+
+## Implementation and scoped acceptance — 2026-11-08
+
+Implemented on `codex/paycheck-review` in the existing checkout, selected by
+owner: "New branch in this checkout". Owner selected inline execution:
+"Lets stay in this chat, yeah". Concrete surfaces are now:
+
+- GET/POST `/api/paycheck-review`: local ledger/evidence and bounded change
+  commands with shared revision validation.
+- POST `/api/paycheck-review/card-data/:sourceId/refresh`: explicit cached
+  card refresh, guarded by the app's existing session/origin/CSRF checks.
+- Existing `/api/data-sources/:id/link-token` accepts action `card_data`;
+  existing authorization-complete verifies the same source. No separate
+  OAuth context or public-token exchange was added for update mode.
+
+Applied LIAB-002/004/005/007/008 and the minimal-product consent rules:
+Transactions required, Liabilities additionally consented for new/replacement
+Link; repair and account-selection behavior remain separate. Null fields and
+failed refreshes keep manual fallback available. `/item/get` checks consent
+before `/liabilities/get`. Deposit-only Items are skipped. Provider credentials
+remain server-only. No live product was initialized during this work.
+
+Observed: 208 synthetic JS tests, one Python test, typecheck, isolated build
+pass. Synthetic in-memory browser review booted and completed; API tests
+exercised read/save and explicit card-refresh HTTP routes. No .env or real
+financial database was read. Official HIG Markdown for accessibility,
+typography, layout, buttons, color and writing was fetched and relevant
+sections reviewed after overcoming the initial JavaScript-shell limitation.
+
+Exact-code Plaid acceptance returned **FAIL: 7 failed, 0 unreported**.
+CHECK-001/002/003/004/005/013/014/015 have scoped evidence.
+CHECK-006/007/008/009/010/011/012 remain failed: no verified public webhook
+receiver/idempotent webhook handling; live mobile/production redirect journey
+and Sandbox consent/product journey untested; full human-task completion and
+all-journey acceptance unavailable. The approved local explicit-refresh
+approach is a stopgap, not a webhook implementation. No overall integration
+acceptance is claimed.
+
+| Task | Why it matters | Where | State |
+| --- | --- | --- | --- |
+| Exercise isolated Sandbox card consent and statement retrieval | Stubs do not prove institution coverage or real consent behavior | Local Sandbox app and Plaid Sandbox | needs_human |
+| Verify mobile HTTPS OAuth before mobile deployment | Current desktop HTTP/popup configuration does not prove mobile flow | Plaid Dashboard redirect URIs | needs_human |
+| Add a verified idempotent webhook receiver before hosted freshness claims | Local explicit refresh does not provide webhook-driven freshness | Future hosted backend and Plaid Dashboard | deferred |
+| Verify VoiceOver and enlarged text | Browser and rendered tests do not establish accessibility conformance | Local browser/device | needs_human |
+
+Primary references consulted: https://plaid.com/docs/link/update-mode/ ,
+https://plaid.com/docs/api/products/liabilities/ , and
+https://developer.apple.com/design/human-interface-guidelines/ .
