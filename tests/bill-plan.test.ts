@@ -47,14 +47,13 @@ it("saves idempotently and isolates environments; excluded rows do not fund acco
   expect(planState(s, []).totals).toHaveLength(0);
   s.db.close();
 });
-it("requires resolving zero, unknown frequency, unassigned account and transfers", () => {
+it("requires resolving zero, unknown frequency, unassigned account", () => {
   const s = new Store(":memory:", Buffer.alloc(32), "sandbox");
   installBillPlan(s);
   for (const change of [
     { amount: "0.00" },
     { frequency: "Unknown" },
     { accountName: "" },
-    { kind: "transfer" },
     { day: 32 },
     { amount: "NaN" },
     { currency: "not-currency" },
@@ -299,5 +298,22 @@ it("separates debt payoff from expenses while keeping the whole payment in accou
     total: 0,
     unknown: 1,
   });
+  s.db.close();
+});
+
+it("confirms a transfer without adding funding or blocking the matching bill", () => {
+  const s = new Store(":memory:", Buffer.alloc(32), "sandbox");
+  installBillPlan(s);
+  savePlan(s, { ...draft, id: "funding-transfer", kind: "transfer" }, []);
+  expect(planState(s, []).records[0]).toMatchObject({
+    kind: "transfer",
+    status: "confirmed",
+  });
+  expect(planState(s, []).totals).toEqual([]);
+  savePlan(s, draft, []);
+  expect(planState(s, []).totals[0].total).toBe(100);
+  expect(
+    planState(s, []).records.find((r) => r.id === draft.id)?.duplicatePlans,
+  ).toEqual([]);
   s.db.close();
 });

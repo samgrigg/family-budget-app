@@ -177,6 +177,8 @@ export function planState(
         (s) =>
           s.id !== r.id &&
           s.status === "confirmed" &&
+          s.kind === "bill" &&
+          r.kind === "bill" &&
           payee(s.name) === payee(r.name),
       )
       .map((s) => ({ id: s.id, name: s.name, accountName: s.accountName }));
@@ -383,14 +385,17 @@ export function savePlan(
     if (
       (r.amountMode !== "variable" && Number(r.amount) <= 0) ||
       !r.accountName ||
-      r.kind === "transfer" ||
       !Object.hasOwn(factors, r.frequency)
     )
       throw Error(
-        "Resolve the amount, payment account and frequency before confirming. Transfers cannot be confirmed as bills.",
+        "Resolve the amount, payment account and frequency before confirming.",
       );
     const others = storedPlans(store).filter(
-      (s) => s.id !== r.id && s.status === "confirmed",
+      (s) =>
+        s.id !== r.id &&
+        s.status === "confirmed" &&
+        s.kind === "bill" &&
+        r.kind === "bill",
     );
     const duplicates = others.filter((s) => payee(s.name) === payee(r.name));
     if (duplicates.length && r.acknowledgeDuplicate !== true)
@@ -476,12 +481,10 @@ export function installBillPlanApi(app: Express, store: Store, drafts: Plan[]) {
       );
       res.json({ ok: true });
     } catch (e: any) {
-      res
-        .status(400)
-        .json({
-          error: e.message,
-          ...(e.duplicatePlans ? { duplicatePlans: e.duplicatePlans } : {}),
-        });
+      res.status(400).json({
+        error: e.message,
+        ...(e.duplicatePlans ? { duplicatePlans: e.duplicatePlans } : {}),
+      });
     }
   });
 }
