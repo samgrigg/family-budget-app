@@ -1,3 +1,4 @@
+import { paycheckDeposits } from "./paycheckDeposits";
 import IncomeSourceSetup from "./IncomeSourceSetup";
 import { saveIncomeSource } from "./saveIncomeSource";
 import ReviewObligationForm from "./ReviewObligationForm";
@@ -28,6 +29,7 @@ export default function PaycheckReview({
   const [data, setData] = useState<any>(null),
     [ledger, setLedger] = useState<ReviewLedger | null>(null),
     [selected, setSelected] = useState(""),
+    [depositSourceId, setDepositSourceId] = useState(""),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false),
@@ -110,6 +112,13 @@ export default function PaycheckReview({
         </button>
       </section>
     );
+  const depositSource =
+    ledger.sources.find((s) => s.id === depositSourceId) ?? ledger.sources[0];
+  const availableDeposits = paycheckDeposits(
+    ledger,
+    data.evidence.transactions,
+    depositSource?.id ?? "",
+  );
   const selectedPaycheck = ledger.paychecks.find((p) => p.id === selected);
   const projection = selectedPaycheck
     ? previewReview(ledger, selected, data.asOf)
@@ -358,7 +367,12 @@ export default function PaycheckReview({
           >
             <label>
               Income source
-              <select name="source" required>
+              <select
+                name="source"
+                required
+                value={depositSource?.id ?? ""}
+                onChange={(e) => setDepositSourceId(e.target.value)}
+              >
                 {ledger.sources.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
@@ -375,31 +389,34 @@ export default function PaycheckReview({
             </label>
             <label>
               Posted deposit (for arrived paycheck)
-              <select name="deposit">
+              <select
+                name="deposit"
+                key={`${depositSource?.id}:${depositSource?.accountId}`}
+                defaultValue=""
+                disabled={!depositSource}
+              >
                 <option value="">Choose deposit</option>
-                {data.evidence.transactions
-                  .filter(
-                    (t: any) =>
-                      !t.pending &&
-                      t.amount.startsWith("-") &&
-                      t.currency === "USD" &&
-                      !ledger.paychecks.some(
-                        (p) => p.id !== selected && p.transactionId === t.id,
-                      ),
-                  )
-                  .map((t: any) => (
-                    <option key={t.id} value={t.id}>
-                      {t.date} ·{" "}
-                      {
-                        data.evidence.accounts.find(
-                          (a: any) => a.id === t.accountId,
-                        )?.name
-                      }{" "}
-                      · {t.name} · ${t.amount.slice(1)}
-                    </option>
-                  ))}
+                {availableDeposits.map((t: any) => (
+                  <option key={t.id} value={t.id}>
+                    {t.date} ·{" "}
+                    {
+                      data.evidence.accounts.find(
+                        (a: any) => a.id === t.accountId,
+                      )?.name
+                    }{" "}
+                    · {t.name} · ${t.amount.slice(1)}
+                  </option>
+                ))}
               </select>
             </label>
+            <p role="status">
+              {depositSource
+                ? `Showing unused posted USD deposits into ${data.evidence.accounts.find((a: any) => a.id === depositSource.accountId)?.name ?? "the mapped account"}.`
+                : "Set up an income source first."}
+              {depositSource && availableDeposits.length === 0
+                ? " No eligible deposits found. Check account history or sync in Accounts."
+                : ""}
+            </p>
             <label>
               Expected amount (future paycheck only)
               <input name="amount" inputMode="decimal" />
@@ -624,24 +641,16 @@ export default function PaycheckReview({
                   Actual posted deposit
                   <select name="deposit" required>
                     <option value="">Choose deposit</option>
-                    {data.evidence.transactions
-                      .filter(
-                        (t: any) =>
-                          !t.pending &&
-                          t.amount.startsWith("-") &&
-                          t.accountId ===
-                            ledger.sources.find(
-                              (s) => s.id === selectedPaycheck.sourceId,
-                            )?.accountId &&
-                          !ledger.paychecks.some(
-                            (p) => p.transactionId === t.id,
-                          ),
-                      )
-                      .map((t: any) => (
-                        <option key={t.id} value={t.id}>
-                          {t.date} · {t.name} · ${t.amount.slice(1)}
-                        </option>
-                      ))}
+                    {paycheckDeposits(
+                      ledger,
+                      data.evidence.transactions,
+                      selectedPaycheck.sourceId,
+                      selectedPaycheck.id,
+                    ).map((t: any) => (
+                      <option key={t.id} value={t.id}>
+                        {t.date} · {t.name} · ${t.amount.slice(1)}
+                      </option>
+                    ))}
                   </select>
                 </label>
                 <button>Confirm arrival and review actual amount</button>

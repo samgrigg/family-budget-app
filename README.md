@@ -186,3 +186,9 @@ Income-source setup now saves immediately, independently of paycheck creation.
 The saved employer/account mapping is listed beside the form; successful saves
 and errors appear there too. Editing an existing source prefills its name and
 account. Saving a source preserves unrelated unsaved review changes.
+
+When adding a paycheck, the deposit list follows the selected income source's
+mapped account. It shows unused, posted USD deposits only, and switching the
+source clears the previous deposit selection. Reconfirming an existing paycheck
+also allows its currently linked deposit. Employer-description heuristics are
+not applied yet; deposits within the mapped account remain available for review.
