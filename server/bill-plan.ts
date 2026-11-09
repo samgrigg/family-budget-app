@@ -2,13 +2,19 @@ import { readFileSync } from "node:fs";
 import type { Express } from "express";
 import type { Store } from "./store";
 import { billState, groupKey, payee } from "./bills";
-import { transactionKey } from "./transfers";
+import {
+  normalizeChargeEvidence,
+  validChargeCount,
+  claimedPaymentKeys,
+} from "./bill-charges";
+import { transactionKey, confirmedTransactionKeys } from "./transfers";
 import {
   monthlyFactors as factors,
   isCreditCardPayment,
   resolveBillAmount,
   validMonth,
   type BillPayment,
+  paymentTransactionKeys,
 } from "../shared/billAmounts";
 export type Plan = {
   id: string;
@@ -27,6 +33,7 @@ export type Plan = {
   amountMode?: "fixed" | "variable";
   planningEstimate?: string;
   payments?: BillPayment[];
+  expectedChargeCount?: number;
   expenseType?: "expense" | "creditPayment" | "creditDebtPayoff";
   creditAccountId?: string;
 };
@@ -296,6 +303,17 @@ export function savePlan(
     (!Array.isArray(r.payments) || r.payments.length > 240)
   )
     throw Error("Invalid payment cycles.");
+  if (
+    r.expectedChargeCount !== undefined &&
+    !validChargeCount(r.expectedChargeCount)
+  )
+    throw Error("Choose 1–24 expected charges per month.");
+  if (
+    (r.expectedChargeCount ?? 1) > 1 &&
+    (r.kind !== "bill" || r.frequency !== "Monthly")
+  )
+    throw Error("Multiple expected charges currently require a monthly bill.");
+  r.payments = r.payments?.map((p) => ({ ...p }));
   const previous = storedPlans(store).find((p) => p.id === r.id);
   const retained = [previous, ...retainedPlans].filter(
     (p): p is Plan => !!p && p.currency === r.currency,
@@ -315,7 +333,9 @@ export function savePlan(
     throw Error("Choose an available credit card account.");
   const months = new Set<string>(),
     keys = new Set<string>(),
-    actuals = paymentEvidence(store);
+    actuals = paymentEvidence(store),
+    claimed = claimedPaymentKeys(storedPlans(store), r.id),
+    transfers = confirmedTransactionKeys(store);
 
   for (const p of r.payments ?? []) {
     if (
@@ -334,6 +354,7 @@ export function savePlan(
     if (months.has(month))
       throw Error("Only one payment per bill per calendar month is supported.");
     months.add(month);
+    normalizeChargeEvidence(p, r, retained, actuals, keys, claimed, transfers);
     if (p.actualTransactionKey) {
       if (
         typeof p.actualTransactionKey !== "string" ||
@@ -365,17 +386,7 @@ export function savePlan(
         throw Error(
           "The payment source and credit card destination must differ.",
         );
-      if (
-        storedPlans(store).some(
-          (other) =>
-            other.id !== r.id &&
-            other.status !== "excluded" &&
-            other.payments?.some(
-              (payment) =>
-                payment.actualTransactionKey === p.actualTransactionKey,
-            ),
-        )
-      )
+      if (claimed.has(p.actualTransactionKey))
         throw Error("That posted payment is already linked to another bill.");
     }
   }
@@ -428,9 +439,14 @@ export function savePlan(
     planningEstimate: r.planningEstimate ?? "",
     expenseType: r.expenseType ?? "expense",
     creditAccountId: r.creditAccountId ?? "",
+    expectedChargeCount: r.expectedChargeCount ?? 1,
     payments: (r.payments ?? []).map((p) => ({
       date: p.date,
       amount: p.amount,
+      ...(p.expectedChargeCount !== undefined
+        ? { expectedChargeCount: p.expectedChargeCount }
+        : {}),
+      ...(p.charges !== undefined ? { charges: p.charges } : {}),
       ...(p.actualTransactionKey
         ? { actualTransactionKey: p.actualTransactionKey }
         : {}),
@@ -498,10 +514,8 @@ export function annotateRepayments(store: Store, state: any) {
       p.kind === "bill" &&
       isCreditCardPayment(p.expenseType),
   ))
-    for (const p of plan.payments ?? []) {
-      const t = p.actualTransactionKey
-        ? evidence.get(p.actualTransactionKey)
-        : undefined;
+    for (const key of (plan.payments ?? []).flatMap(paymentTransactionKeys)) {
+      const t = evidence.get(key);
       if (t && t.currency === plan.currency && t.account_type === "depository")
         groups.set(groupKey(t), plan.expenseType!);
     }

@@ -8,6 +8,7 @@ const fields = [
   ["currency", "Currency"],
   ["frequency", "Frequency"],
   ["day", "Payment day"],
+  ["expectedChargeCount", "Expected charges per month"],
   ["planningEstimate", "Planning estimate"],
   ["expenseType", "Counts as"],
   ["creditAccountId", "Card account"],
@@ -217,6 +218,9 @@ export default function BillMerge({
                   <option value="target">
                     Existing: {target.date} · {preview.target.currency}{" "}
                     {target.amount}
+                    {target.charges
+                      ? ` · ${target.charges.length} linked charges / ${target.expectedChargeCount ?? 1} expected`
+                      : ""}
                     {target.actualTransactionKey
                       ? " · posted evidence linked"
                       : ""}
@@ -224,6 +228,9 @@ export default function BillMerge({
                   <option value="source">
                     This entry: {source.date} · {preview.source.currency}{" "}
                     {source.amount}
+                    {source.charges
+                      ? ` · ${source.charges.length} linked charges / ${source.expectedChargeCount ?? 1} expected`
+                      : ""}
                     {source.actualTransactionKey
                       ? " · posted evidence linked"
                       : ""}
@@ -233,9 +240,9 @@ export default function BillMerge({
             );
           })}
           <p>
-            Different payments in the same month need a choice because this
-            version supports one payment per bill per month. A record of the
-            original entries is retained for recovery.
+            Different monthly payment records need a choice, including their
+            linked charges. The chosen record keeps all its charge evidence. A
+            record of the original entries is retained for recovery.
           </p>
           <div className="actions">
             <button

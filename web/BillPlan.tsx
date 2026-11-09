@@ -321,10 +321,24 @@ export default function BillPlan({
                         : `${money(r.resolvedAmount.amount, r.currency)} · ${r.resolvedAmount.basis === "actual" ? "Actual paid" : r.resolvedAmount.basis === "known" ? "Known payment" : r.resolvedAmount.basis === "estimate" ? "Planning estimate" : "Monthly equivalent"}`}{" "}
                       · {month}
                     </p>
+                    {r.resolvedAmount.expectedCharges > 1 && (
+                      <p>
+                        {r.resolvedAmount.linkedCharges} of{" "}
+                        {r.resolvedAmount.expectedCharges} expected charges
+                        linked for {month}
+                        {r.resolvedAmount.linkedCharges >=
+                        r.resolvedAmount.expectedCharges
+                          ? r.resolvedAmount.usingChargeSnapshots
+                            ? ". Total includes saved amounts for unavailable charges."
+                            : ". Combined charge total is used."
+                          : ". Partial evidence: the full monthly amount remains planned; an unlinked charge does not end a membership."}
+                      </p>
+                    )}
                     {r.resolvedAmount.missingActual && (
                       <p>
-                        Linked transaction is unavailable. The total uses the
-                        saved payment amount; verify the evidence.
+                        {r.resolvedAmount.usingChargeSnapshots
+                          ? "Some linked transactions are unavailable. Verify the retained charge amounts used in the total."
+                          : "Linked transaction is unavailable. The total uses the full saved monthly payment amount; verify the evidence."}
                       </p>
                     )}
                     {Number(r.amount) === 0 && r.amountMode !== "variable" && (
@@ -375,6 +389,7 @@ export default function BillPlan({
                         r.expenseType,
                         month,
                         r.payments,
+                        r.expectedChargeCount,
                         r.resolvedAmount?.basis === "actual"
                           ? r.resolvedAmount.amount
                           : null,
@@ -421,7 +436,7 @@ export default function BillPlan({
                         </select>
                       </label>
                       <label>
-                        Fixed amount per payment
+                        Fixed amount (full commitment)
                         <input
                           name="amount"
                           defaultValue={r.amount}
