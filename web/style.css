@@ -957,3 +957,23 @@ input[type="month"] {
   border-bottom: 1px solid #e4e4e7;
   overflow-wrap: anywhere;
 }
+
+.grouped-charges {
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  margin-block: 1rem;
+}
+.charge-row {
+  min-width: 0;
+  margin-block: 1rem;
+  padding: 0.8rem;
+  border: 1px solid var(--border, #767676);
+  border-radius: 0.5rem;
+  display: grid;
+  gap: 0.8rem;
+}
+.charge-row legend {
+  padding-inline: 0.3rem;
+  font-weight: 600;
+}

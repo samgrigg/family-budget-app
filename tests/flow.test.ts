@@ -150,9 +150,11 @@ it.each([
   { linked: true, cardCredit: false, debt: false },
   { linked: false, cardCredit: true, debt: false },
   { linked: true, cardCredit: true, debt: true },
+  { linked: true, cardCredit: false, debt: false, grouped: true },
+  { linked: true, cardCredit: false, debt: true, grouped: true },
 ])(
   "routes explicitly linked repayments without new expenses or inflows ($linked, $cardCredit)",
-  ({ linked, cardCredit, debt }) => {
+  ({ linked, cardCredit, debt, grouped = false }) => {
     const s = new Store(":memory:", Buffer.alloc(32), "sandbox");
     s.connect("c", "token", [
       { account_id: "checking", name: "Checking", type: "depository" },
@@ -160,11 +162,12 @@ it.each([
     ]);
     for (const [id, account, name, amount] of [
       ...(debt ? [] : [["purchase", "card", "Groceries", "100.00"]]),
+      ...(grouped ? [["payment2", "checking", "Online debit", "50.00"]] : []),
       [
         "payment",
         "checking",
         cardCredit ? "Online payment" : "Online debit",
-        "100.00",
+        grouped ? "50.00" : "100.00",
       ],
       ...(cardCredit
         ? [["receipt", "card", "Autopay payment", "-100.00"]]
@@ -194,11 +197,20 @@ it.each([
         creditAccountId: linked
           ? s.accountList().find((a) => a.id === "card")!.canonicalAccountId
           : "",
+        expectedChargeCount: grouped ? 2 : 1,
         payments: [
           {
             date: "2026-11-23",
             amount: "100.00",
-            actualTransactionKey: transactionKey(actual),
+            ...(grouped
+              ? {
+                  expectedChargeCount: 2,
+                  charges: s.repository
+                    .history("all")
+                    .filter((t) => t.id.startsWith("payment"))
+                    .map((t) => ({ key: transactionKey(t), label: "" })),
+                }
+              : { actualTransactionKey: transactionKey(actual) }),
           },
         ],
       },

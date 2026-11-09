@@ -125,3 +125,76 @@ it("requires bank-account actual evidence for debt payoff too", () => {
     ),
   ).toMatchObject({ amount: 150, basis: "known", missingActual: true });
 });
+
+const grouped = {
+  amount: "200.00",
+  frequency: "Monthly",
+  currency: "USD",
+  expectedChargeCount: 4,
+  payments: [
+    {
+      date: "2026-12-01",
+      amount: "200.00",
+      expectedChargeCount: 4,
+      charges: [1, 2, 3].map((i) => ({
+        key: `gym${i}`,
+        amount: "50.00",
+        date: "2026-12-02",
+        label: `Member ${i}`,
+      })),
+    },
+  ],
+};
+const gymActuals = new Map(
+  [1, 2, 3, 4].map((i) => [`gym${i}`, { amount: "55.00", currency: "USD" }]),
+);
+it("retains the full commitment when only three of four separate charges are linked", () => {
+  expect(resolveBillAmount(grouped, "2026-12", gymActuals)).toMatchObject({
+    amount: 200,
+    matchedCharges: 3,
+    expectedCharges: 4,
+    chargeAmount: 165,
+  });
+});
+it("sums distinct same-amount transactions once all expected charges are linked", () => {
+  const complete = {
+    ...grouped,
+    payments: [
+      {
+        ...grouped.payments[0],
+        charges: [
+          ...grouped.payments[0].charges,
+          { key: "gym4", amount: "50.00", date: "2026-12-02", label: "" },
+        ],
+      },
+    ],
+  };
+  expect(resolveBillAmount(complete, "2026-12", gymActuals)).toMatchObject({
+    amount: 220,
+    basis: "actual",
+    matchedCharges: 4,
+    expectedCharges: 4,
+  });
+  expect(resolveBillAmount(complete, "2027-01", gymActuals)).toMatchObject({
+    amount: 200,
+    matchedCharges: 0,
+    expectedCharges: 4,
+  });
+  expect(resolveBillAmount(complete, "2026-12")).toMatchObject({
+    amount: 200,
+    basis: "known",
+    missingActual: true,
+    usingChargeSnapshots: true,
+    linkedCharges: 4,
+    matchedCharges: 0,
+  });
+});
+it("preserves the expected charge count saved with each month", () => {
+  expect(
+    resolveBillAmount(
+      { ...grouped, expectedChargeCount: 3 },
+      "2026-12",
+      gymActuals,
+    ),
+  ).toMatchObject({ amount: 200, expectedCharges: 4 });
+});

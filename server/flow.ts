@@ -1,4 +1,7 @@
-import { isCreditCardPayment } from "../shared/billAmounts";
+import {
+  paymentTransactionKeys,
+  isCreditCardPayment,
+} from "../shared/billAmounts";
 import { storedPlans, paymentEvidence } from "./bill-plan";
 import { billState } from "./bills";
 import { householdEmployer, identifyEmployer, incomeState } from "./income";
@@ -190,10 +193,10 @@ export function flowState(store: Store, month: string, currency: string) {
       p.kind === "bill" &&
       isCreditCardPayment(p.expenseType),
   )) {
-    for (const payment of plan.payments ?? []) {
-      const out = payment.actualTransactionKey
-        ? evidence.get(payment.actualTransactionKey)
-        : undefined;
+    for (const payment of (plan.payments ?? []).flatMap((p) =>
+      paymentTransactionKeys(p).map((key) => ({ date: p.date, key })),
+    )) {
+      const out = evidence.get(payment.key);
       if (
         !out ||
         out.currency !== plan.currency ||
@@ -219,7 +222,7 @@ export function flowState(store: Store, month: string, currency: string) {
           if (credits.length === 1) used.add(transactionKey(credits[0]));
         }
         debtPayoffs.push({
-          key: `debt-payoff:${plan.id}:${payment.date}`,
+          key: `debt-payoff:${plan.id}:${payment.key}`,
           name: plan.name,
           kind: "Debt payoff",
           transactions: [out],
@@ -253,8 +256,8 @@ export function flowState(store: Store, month: string, currency: string) {
           ? matching[0]
           : {
               ...out,
-              id: `planned-card:${plan.id}:${payment.date}`,
-              canonicalTransactionId: `planned-card:${plan.id}:${payment.date}`,
+              id: `planned-card:${plan.id}:${payment.key}`,
+              canonicalTransactionId: `planned-card:${plan.id}:${payment.key}`,
               canonicalAccountId: destination,
               amount: String(-Number(out.amount)),
               account_type: "credit",

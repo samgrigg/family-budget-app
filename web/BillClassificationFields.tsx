@@ -1,16 +1,26 @@
 import { isCreditCardPayment } from "../shared/billAmounts";
 import { useState } from "react";
 export default function BillClassificationFields({
+  kind = "bill",
   expenseType = "expense",
   creditAccountId = "",
   accounts,
 }: {
+  kind?: string;
   expenseType?: string;
   creditAccountId?: string;
   accounts: { id: string; name: string }[];
 }) {
   const [classification, setClassification] = useState(expenseType);
   const [card, setCard] = useState(creditAccountId);
+  if (kind === "transfer")
+    return (
+      <>
+        <input type="hidden" name="expenseType" value={classification} />
+        <input type="hidden" name="creditAccountId" value={card} />
+        <p>Moves money between accounts; excluded from bill totals.</p>
+      </>
+    );
   return (
     <>
       <label>

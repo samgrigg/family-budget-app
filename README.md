@@ -102,3 +102,38 @@ An imported auto-transfer flagged as a duplicate can also merge into its confirm
 Expand a bill under **Budget → Planned Commitments**, then click **Find supporting transactions**. It immediately searches included local posted outflows by the bill description or full payment amount. Refine the description, amount, account/date filters, or require both description and amount. Results show why they matched and flag confirmed account transfers as funding movements. Credit card repayment searches use bank debits only.
 
 Search covers all eligible stored history, with 50 candidates per page, and does not fetch more bank data. Results are candidates, not automatically attached evidence; searching never changes the bill or bank transactions. Saved changes to the bill or planning month reset the search scope. Restart the app after updating to load the new search endpoint.
+
+For a planned auto-transfer, choose **Entry type → Auto-transfer (not a bill)**
+and **Confirm transfer**. Expense and card classification controls are hidden;
+the transfer stays recorded but contributes nothing to bill or funding totals.
+Switching back to a bill restores its classification controls. The existing
+semantic web select and button remain in use, with direct action labels guided
+by Apple HIG writing guidance. This change was checked with server-rendered
+component tests, persistence/totals regression tests, typecheck and build;
+interactive browser, enlarged-text, keyboard and VoiceOver checks are unverified.
+
+For a monthly bill paid through several charges (for example, family gym
+memberships), enter the **Fixed amount (full commitment)** as the combined
+monthly amount and set **Expected charges per month** to 3 or 4. Expand that
+month's payment, check the full monthly amount, then add each separate posted
+transaction under **Separate posted charges**. Labels can identify family
+members. Save or confirm the commitment to retain its evidence.
+
+The bill shows how many expected charges are linked. Partial evidence retains
+the full monthly amount; once all expected charges are linked, their combined
+actual amount is used. Identical-looking transactions remain separate and a
+transaction cannot support two active commitments or two cycles. An unlinked
+charge does not end a membership. Each saved cycle retains its expected count
+so adjusting a future month's count does not rewrite past cycles. Grouped
+charge selection uses the latest 2,000 stored posted outflows, filtered to the
+selected month and currency. Restart the app after updating.
+
+Grouped charge UI verification: synthetic in-memory browser checks at 390px,
+three-of-four and four-of-four save/confirmation, optional labels, live
+single-to-grouped switching, edited totals, keyboard activation and 44px row
+controls. Native HTML fields, fieldsets and disclosure controls provide the web
+adaptation of HIG [layout](https://developer.apple.com/design/human-interface-guidelines/layout),
+[writing](https://developer.apple.com/design/human-interface-guidelines/writing)
+and [accessibility](https://developer.apple.com/design/human-interface-guidelines/accessibility)
+guidance. Full keyboard traversal, enlarged text/browser zoom and VoiceOver
+remain unverified; these checks do not establish accessibility conformance.
