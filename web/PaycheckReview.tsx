@@ -1,3 +1,5 @@
+import ExpectedAmountField from "./ExpectedAmountField";
+import { expectedPaycheck } from "./expectedPaycheck";
 import { paycheckDeposits } from "./paycheckDeposits";
 import IncomeSourceSetup from "./IncomeSourceSetup";
 import { saveIncomeSource } from "./saveIncomeSource";
@@ -417,10 +419,17 @@ export default function PaycheckReview({
                 ? " No eligible deposits found. Check account history or sync in Accounts."
                 : ""}
             </p>
-            <label>
-              Expected amount (future paycheck only)
-              <input name="amount" inputMode="decimal" />
-            </label>
+            <ExpectedAmountField
+              key={`${depositSource?.id}:${depositSource?.accountId}`}
+              name="amount"
+              label="Expected amount (future paycheck only)"
+              suggestion={expectedPaycheck(
+                ledger,
+                data.evidence.transactions,
+                depositSource?.id ?? "",
+                data.asOf,
+              )}
+            />
             <label>
               Expected arrival (future paycheck only)
               <input name="date" type="date" />
@@ -570,17 +579,19 @@ export default function PaycheckReview({
                   )
                 }
               >
-                <label>
-                  Expected amount
-                  <input
-                    name="expectedAmount"
-                    inputMode="decimal"
-                    defaultValue={formatReviewMoney(
-                      selectedPaycheck.amountMinor,
-                    )}
-                    required
-                  />
-                </label>
+                <ExpectedAmountField
+                  key={selectedPaycheck.id}
+                  name="expectedAmount"
+                  label="Expected amount"
+                  initialAmount={selectedPaycheck.amountMinor}
+                  suggestion={expectedPaycheck(
+                    ledger,
+                    data.evidence.transactions,
+                    selectedPaycheck.sourceId,
+                    data.asOf,
+                  )}
+                />
+
                 <label>
                   Expected arrival date
                   <input

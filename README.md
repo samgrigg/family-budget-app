@@ -192,3 +192,11 @@ mapped account. It shows unused, posted USD deposits only, and switching the
 source clears the previous deposit selection. Reconfirming an existing paycheck
 also allows its currently linked deposit. Employer-description heuristics are
 not applied yet; deposits within the mapped account remain available for review.
+
+Expected paycheck amounts are suggested from up to five recent received
+paychecks explicitly identified for the selected source and still matching
+posted USD deposit evidence. The editable suggestion uses the median (one
+paycheck uses its own amount). A range wider than 10% of the median is flagged.
+Without confirmed paycheck history the field stays blank. Existing saved
+expectations are preserved; **Use suggested amount** applies the estimate on
+request. Suggestions never count as received cash or increase safe to spend.
