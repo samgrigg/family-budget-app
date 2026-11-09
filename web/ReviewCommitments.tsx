@@ -1,3 +1,6 @@
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import React from "react";
 import type { Obligation, ReviewLedger } from "../shared/paycheckReview";
 import { reviewMoney } from "./ReviewSummary";
@@ -84,7 +87,7 @@ export function ObligationRow({
           onReserve(o.id, String(f.get("paycheck")), String(f.get("amount")));
         }}
       >
-        <label>
+        <Label>
           Fund from
           <select name="paycheck" defaultValue={paycheckId}>
             {ledger.paychecks.map((p) => (
@@ -94,17 +97,19 @@ export function ObligationRow({
               </option>
             ))}
           </select>
-        </label>
-        <label>
+        </Label>
+        <Label>
           Reservation amount
-          <input
+          <Input
             name="amount"
             inputMode="decimal"
             placeholder="0.00"
             required
           />
-        </label>
-        <button type="submit">Set reservation</button>
+        </Label>
+        <Button type="submit" variant="outline">
+          Set reservation
+        </Button>
       </form>
       <p>
         Sets this paycheck’s total reservation for this obligation. Enter zero
@@ -121,7 +126,7 @@ export function ObligationRow({
             );
           }}
         >
-          <label>
+          <Label>
             Posted payment from this paycheck account
             <select name="transaction" required>
               <option value="">Choose a debit</option>
@@ -131,20 +136,20 @@ export function ObligationRow({
                 </option>
               ))}
             </select>
-          </label>
-          <button type="submit">Record payment</button>
+          </Label>
+          <Button type="submit">Record payment</Button>
         </form>
         <div className="actions">
-          <button type="button" className="secondary" onClick={() => onEdit(o)}>
+          <Button type="button" variant="outline" onClick={() => onEdit(o)}>
             Edit obligation
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="secondary"
+            variant="outline"
             onClick={() => onRemove(o.id)}
           >
             Remove obligation
-          </button>
+          </Button>
         </div>
       </details>
     </article>

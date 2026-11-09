@@ -1,3 +1,6 @@
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import React, { useId, useState } from "react";
 import type { PaycheckSuggestion } from "./expectedPaycheck";
 import { formatReviewMoney } from "../shared/reviewMoney";
@@ -22,7 +25,7 @@ export default function ExpectedAmountField({
   );
   return (
     <>
-      <label>
+      <Label>
         {label}
         <input
           name={name}
@@ -32,7 +35,7 @@ export default function ExpectedAmountField({
           onChange={(e) => setValue(e.target.value)}
           aria-describedby={helpId}
         />
-      </label>
+      </Label>
       <p id={helpId}>
         {suggestion ? (
           <>
@@ -55,13 +58,13 @@ export default function ExpectedAmountField({
         )}
       </p>
       {suggestion && (
-        <button
+        <Button
           type="button"
-          className="secondary"
+          variant="outline"
           onClick={() => setValue(formatReviewMoney(suggestion.amountMinor))}
         >
           Use suggested amount
-        </button>
+        </Button>
       )}
     </>
   );

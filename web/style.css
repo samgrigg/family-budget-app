@@ -1,7 +1,7 @@
 :root {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  color: #18181b;
-  background: #fafafa;
+  color: var(--foreground);
+  background: var(--background);
   font-synthesis: none;
   -webkit-font-smoothing: antialiased;
   font-size: 100%;
@@ -25,7 +25,7 @@ header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid #e4e4e7;
+  border-bottom: 1px solid var(--border);
 }
 .brand {
   display: inline-flex;
@@ -40,7 +40,7 @@ header {
 .tag,
 .badge,
 .count {
-  color: #71717a;
+  color: var(--muted-foreground);
   font-size: 0.8125rem;
   font-variant-numeric: tabular-nums;
 }
@@ -49,7 +49,7 @@ header {
 }
 .panel {
   padding: 28px 0;
-  border-bottom: 1px solid #e4e4e7;
+  border-bottom: 1px solid var(--border);
 }
 .panel-heading {
   display: flex;
@@ -67,7 +67,7 @@ h2 {
   margin: 0;
 }
 p {
-  color: #71717a;
+  color: var(--muted-foreground);
   font-size: 1rem;
   line-height: 1.6;
   margin: 0 0 16px;
@@ -76,7 +76,7 @@ p {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border: 1px solid #d4d4d8;
+  border: 1px solid var(--border);
   padding: 3px 7px;
   border-radius: 4px;
   white-space: nowrap;
@@ -86,37 +86,37 @@ p {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #a1a1aa;
+  background: var(--input);
 }
 .badge.live::before {
-  background: #16804a;
+  background: var(--success);
 }
-button {
+button:not([data-slot="button"]) {
   min-height: 44px;
   min-width: 44px;
   width: 100%;
   padding: 10px 14px;
-  border: 1px solid #18181b;
+  border: 1px solid var(--foreground);
   border-radius: 5px;
-  background: #18181b;
-  color: #fff;
+  background: var(--primary);
+  color: var(--primary-foreground);
   font: inherit;
   font-size: 1rem;
   font-weight: 500;
   cursor: pointer;
 }
-button:hover:not(:disabled) {
-  background: #3f3f46;
+button:not([data-slot="button"]):hover:not(:disabled) {
+  background: var(--foreground);
 }
-button:disabled {
-  color: #71717a;
-  background: #e4e4e7;
-  border-color: #e4e4e7;
+button:not([data-slot="button"]):disabled {
+  color: var(--muted-foreground);
+  background: var(--border);
+  border-color: var(--border);
   cursor: not-allowed;
 }
 button:focus-visible,
 a:focus-visible {
-  outline: 2px solid #2563eb;
+  outline: 2px solid var(--ring);
   outline-offset: 3px;
 }
 .fine {
@@ -129,18 +129,18 @@ a:focus-visible {
   line-height: 1.6;
   padding: 12px;
   margin: 16px 0;
-  border: 1px solid #e4e4e7;
+  border: 1px solid var(--border);
   border-radius: 4px;
-  background: #f4f4f5;
+  background: var(--muted);
   overflow-wrap: anywhere;
 }
 .error {
-  color: #9f2525;
-  border-color: #efcaca;
-  background: #fff7f7;
+  color: var(--destructive);
+  border-color: var(--destructive-border);
+  background: var(--destructive-bg);
 }
 .connection {
-  border-top: 1px solid #e4e4e7;
+  border-top: 1px solid var(--border);
   padding-top: 20px;
   margin-top: 20px;
   display: flex;
@@ -165,14 +165,14 @@ a:focus-visible {
 }
 .secondary {
   background: transparent;
-  color: #3f3f46;
-  border-color: #d4d4d8;
+  color: var(--foreground);
+  border-color: var(--border);
 }
 .secondary:hover:not(:disabled) {
-  background: #f4f4f5;
+  background: var(--muted);
 }
 .danger {
-  color: #9f2525;
+  color: var(--destructive);
 }
 .empty {
   padding: 28px 0;
@@ -210,7 +210,7 @@ tr {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 4px 12px;
   padding: 14px 0;
-  border-bottom: 1px solid #e4e4e7;
+  border-bottom: 1px solid var(--border);
 }
 td {
   min-width: 0;
@@ -226,13 +226,13 @@ td {
 .transaction-date {
   grid-column: 1;
   grid-row: 3;
-  color: #71717a;
+  color: var(--muted-foreground);
   font-size: 0.8125rem;
 }
 .transaction-account {
   grid-column: 1;
   grid-row: 2;
-  color: #71717a;
+  color: var(--muted-foreground);
   font-size: 0.8125rem;
   overflow-wrap: anywhere;
 }
@@ -246,11 +246,11 @@ td {
   font-size: 0.8125rem;
 }
 .credit {
-  color: #16804a;
+  color: var(--success);
 }
 small {
   display: block;
-  color: #71717a;
+  color: var(--muted-foreground);
   font-size: 0.75rem;
   margin-top: 4px;
 }
@@ -259,7 +259,7 @@ footer {
   justify-content: space-between;
   padding: 20px 0;
   font-size: 0.75rem;
-  color: #71717a;
+  color: var(--muted-foreground);
 }
 @media (min-width: 640px) {
   main {
@@ -304,14 +304,14 @@ footer {
   th {
     text-align: left;
     font-size: 0.8125rem;
-    color: #71717a;
+    color: var(--muted-foreground);
     font-weight: 400;
     padding: 12px 12px 12px 0;
-    border-bottom: 1px solid #e4e4e7;
+    border-bottom: 1px solid var(--border);
   }
   td {
     padding: 16px 12px 16px 0;
-    border-bottom: 1px solid #e4e4e7;
+    border-bottom: 1px solid var(--border);
   }
   .transaction-date {
     white-space: nowrap;
@@ -321,7 +321,7 @@ footer {
   }
 }
 .bill {
-  border-top: 1px solid #e4e4e7;
+  border-top: 1px solid var(--border);
   padding: 20px 0;
   margin-top: 20px;
 }
@@ -344,10 +344,10 @@ input:not([type]) {
   font: inherit;
   padding: 10px;
   min-height: 44px;
-  border: 1px solid #a1a1aa;
+  border: 1px solid var(--input);
   border-radius: 4px;
-  background: white;
-  color: #18181b;
+  background: var(--card);
+  color: var(--foreground);
   max-width: 100%;
 }
 .bill-name {
@@ -379,7 +379,7 @@ input:not([type]) {
 summary:focus-visible,
 select:focus-visible,
 input:focus-visible {
-  outline: 2px solid #2563eb;
+  outline: 2px solid var(--ring);
   outline-offset: 3px;
 }
 
@@ -398,7 +398,7 @@ input:focus-visible {
   justify-content: space-between;
   gap: 1rem;
   padding: 0.75rem 0;
-  border-top: 1px solid var(--line, #ddd);
+  border-top: 1px solid var(--line, var(--border));
 }
 .account-list li > div {
   min-width: 0;
@@ -414,7 +414,7 @@ select {
 .page-nav {
   display: flex;
   gap: 1rem;
-  border-bottom: 1px solid #ddd;
+  border-bottom: 1px solid var(--border);
   margin-bottom: 1.5rem;
 }
 .page-nav a {
@@ -430,7 +430,7 @@ select {
   border-bottom: 2px solid currentColor;
 }
 .page-nav a:focus-visible {
-  outline: 3px solid #2563eb;
+  outline: 3px solid var(--ring);
   outline-offset: 2px;
 }
 .institution-name {
@@ -461,7 +461,7 @@ select {
   margin: 1rem 0;
 }
 .institution-index li {
-  border-bottom: 1px solid #ddd;
+  border-bottom: 1px solid var(--border);
 }
 .institution-index a {
   display: grid;
@@ -473,11 +473,11 @@ select {
   overflow-wrap: anywhere;
 }
 .institution-index a:hover {
-  background: #f4f4f5;
+  background: var(--muted);
 }
 .institution-index a:focus-visible,
 .back-link:focus-visible {
-  outline: 3px solid #2563eb;
+  outline: 3px solid var(--ring);
   outline-offset: 2px;
 }
 .back-link {
@@ -499,7 +499,7 @@ select {
   grid-template-columns: minmax(4rem, 6rem) minmax(0, 1fr);
   gap: 1rem;
   padding: 1rem 0;
-  border-top: 1px solid #ddd;
+  border-top: 1px solid var(--border);
 }
 .bill-day {
   font-weight: 600;
@@ -575,7 +575,7 @@ p,
 small,
 th,
 footer {
-  color: #52525b;
+  color: var(--muted-foreground);
 }
 .fine,
 .connection p,
@@ -607,7 +607,7 @@ label {
   padding: 0.75rem;
 }
 .page-nav a[aria-current] {
-  background: #f0f0f2;
+  background: var(--muted);
   border-radius: 0.375rem 0.375rem 0 0;
 }
 .page-intro {
@@ -624,7 +624,7 @@ label {
   min-height: 44px;
   align-items: center;
   padding: 0.625rem 0.875rem;
-  color: #18181b;
+  color: var(--foreground);
 }
 .quick-actions button {
   width: auto;
@@ -634,10 +634,10 @@ label {
   top: 0;
   left: 1rem;
   transform: translateY(-150%);
-  background: #fff;
+  background: var(--card);
   padding: 0.75rem;
   z-index: 10;
-  color: #18181b;
+  color: var(--foreground);
 }
 .skip-link:focus {
   transform: translateY(0);
@@ -645,7 +645,7 @@ label {
 h1:focus-visible,
 section[tabindex]:focus-visible,
 table[tabindex]:focus-visible {
-  outline: 2px solid #2563eb;
+  outline: 2px solid var(--ring);
   outline-offset: 4px;
 }
 .action-status:empty {
@@ -653,9 +653,9 @@ table[tabindex]:focus-visible {
 }
 .action-status:not(:empty) {
   padding: 0.75rem;
-  background: #f0f0f2;
-  color: #18181b;
-  border-left: 3px solid #52525b;
+  background: var(--muted);
+  color: var(--foreground);
+  border-left: 3px solid var(--muted-foreground);
 }
 @media (max-width: 400px) {
   .month-bills > li {
@@ -676,17 +676,17 @@ table[tabindex]:focus-visible {
   .transaction-account,
   .transaction-date,
   small {
-    color: #27272a;
+    color: var(--foreground);
   }
   button.secondary,
   select,
   input {
-    border-color: #52525b;
+    border-color: var(--muted-foreground);
   }
 }
 
 .monthly-total {
-  color: #18181b;
+  color: var(--foreground);
 }
 
 .flow-filters {
@@ -708,11 +708,11 @@ input[type="month"] {
 .flow-scroll {
   max-width: 100%;
   overflow-x: auto;
-  border: 1px solid #ddd;
-  background: white;
+  border: 1px solid var(--border);
+  background: var(--card);
 }
 .flow-scroll:focus-visible {
-  outline: 2px solid #2563eb;
+  outline: 2px solid var(--ring);
   outline-offset: 3px;
 }
 .flow-scroll svg {
@@ -733,7 +733,7 @@ input[type="month"] {
 }
 
 .flow-chart {
-  background: #fff;
+  background: var(--card);
 }
 .flow-toolbar {
   display: flex;
@@ -769,11 +769,11 @@ input[type="month"] {
   width: min(36rem, calc(100% - 2rem));
   max-height: 85vh;
   overflow: auto;
-  border: 1px solid #a1a1aa;
+  border: 1px solid var(--input);
   border-radius: 0.5rem;
   padding: 1.25rem;
-  color: #18181b;
-  background: #fff;
+  color: var(--foreground);
+  background: var(--card);
 }
 .flow-settings::backdrop {
   background: rgb(0 0 0 / 0.4);
@@ -795,12 +795,12 @@ input[type="month"] {
   cursor: pointer;
 }
 .network-node:focus-visible {
-  outline: 3px solid #2563eb;
+  outline: 3px solid var(--ring);
 }
 
 .flow-story {
   padding: 1.25rem;
-  border-bottom: 1px solid #ddd;
+  border-bottom: 1px solid var(--border);
 }
 .flow-story-totals {
   display: flex;
@@ -809,7 +809,7 @@ input[type="month"] {
   margin: 1.25rem 0;
 }
 .flow-story-totals dt {
-  color: #52525b;
+  color: var(--muted-foreground);
   font-size: 0.875rem;
 }
 .flow-story-totals dd {
@@ -932,18 +932,18 @@ input[type="month"] {
   flex: 1 1 9rem;
   color: inherit;
   background: transparent;
-  border: 1px solid #d4d4d8;
+  border: 1px solid var(--border);
   white-space: normal;
 }
 .budget-tabs [aria-selected="true"] {
   font-weight: 650;
   border-color: currentColor;
-  background: #e4e4e7;
+  background: var(--border);
   box-shadow: inset 0 -3px currentColor;
 }
 .budget-tabs [role="tab"]:hover:not(:disabled) {
-  background: #e4e4e7;
-  color: #18181b;
+  background: var(--border);
+  color: var(--foreground);
 }
 .bill-evidence {
   margin-block: 1rem;
@@ -954,7 +954,7 @@ input[type="month"] {
 }
 .evidence-matches li {
   padding-block: 1rem;
-  border-bottom: 1px solid #e4e4e7;
+  border-bottom: 1px solid var(--border);
   overflow-wrap: anywhere;
 }
 
@@ -1015,7 +1015,7 @@ input[type="month"] {
 }
 .review-summary p,
 .review-summary li {
-  color: #3f3f46;
+  color: var(--foreground);
 }
 
 input[type="date"] {
@@ -1024,3 +1024,496 @@ input[type="date"] {
   padding: 0.5rem;
   font: inherit;
 }
+
+/* Shared Zinc presentation. Financial behavior lives in the review model. */
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+main {
+  max-width: 1120px;
+  padding-bottom: 1.5rem;
+}
+header {
+  min-height: 76px;
+  border: 0;
+  gap: 1rem;
+}
+.brand {
+  gap: 0.75rem;
+  font-size: 1.0625rem;
+  letter-spacing: -0.025em;
+}
+.brand-mark {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--input);
+  border-radius: 6px;
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  padding: 6px;
+  background: var(--card);
+}
+.brand-mark i {
+  display: block;
+  width: 3px;
+  background: var(--foreground);
+  border-radius: 1px;
+  height: 7px;
+}
+.brand-mark i:nth-child(2) {
+  height: 12px;
+}
+.brand-mark i:nth-child(3) {
+  height: 9px;
+}
+.app-caption {
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
+}
+.page-nav {
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 4px;
+  gap: 3px;
+  margin-bottom: 2rem;
+}
+.page-nav a {
+  flex: 1 1 auto;
+  justify-content: center;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+.page-nav a:hover {
+  color: var(--foreground);
+  background: var(--card);
+}
+.page-nav a[aria-current] {
+  color: var(--foreground);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  box-shadow: var(--shadow);
+  font-weight: 600;
+}
+h1 {
+  font-size: clamp(1.75rem, 4vw, 2.125rem);
+  letter-spacing: -0.045em;
+  margin-top: 1.5rem;
+}
+h2 {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+h3 {
+  font-weight: 600;
+}
+main > h1 + p {
+  max-width: 48rem;
+  color: var(--muted-foreground);
+  margin-bottom: 1.5rem;
+}
+.panel {
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 1.25rem;
+  margin: 1rem 0;
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+.panel .panel {
+  box-shadow: none;
+  margin: 1rem 0 0;
+}
+.panel > h2 {
+  margin-bottom: 1rem;
+}
+.panel > p {
+  max-width: 52rem;
+}
+.panel > :last-child {
+  margin-bottom: 0;
+}
+form {
+  display: grid;
+  gap: 1rem;
+}
+form label {
+  display: grid;
+  gap: 0.375rem;
+  min-width: 0;
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+form input:not([type="checkbox"]),
+form select {
+  width: 100%;
+  min-width: 0;
+  margin-top: 0;
+}
+input,
+select,
+textarea {
+  background: var(--card);
+  color: var(--foreground);
+  accent-color: var(--primary);
+}
+input::placeholder {
+  color: var(--muted-foreground);
+}
+input:disabled,
+select:disabled {
+  background: var(--muted);
+  color: var(--muted-foreground);
+}
+input[type="date"],
+input[type="month"] {
+  border: 1px solid var(--input);
+  border-radius: 5px;
+  min-height: 44px;
+  color: var(--foreground);
+  background: var(--card);
+}
+label > select,
+label > input {
+  font-weight: 400;
+}
+button:not([data-slot="button"]) {
+  border-radius: 5px;
+  font-size: 0.9375rem;
+  box-shadow: var(--shadow);
+}
+button:not([data-slot="button"]):hover:not(:disabled) {
+  background: color-mix(in srgb, var(--primary), var(--card) 12%);
+}
+button.secondary:not([data-slot="button"]),
+button[aria-pressed="false"] {
+  color: var(--foreground);
+  background: var(--card);
+  border-color: var(--input);
+  box-shadow: none;
+}
+button.secondary:not([data-slot="button"]):hover:not(:disabled) {
+  background: var(--muted);
+}
+[data-slot="button"] {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0.625rem 0.875rem;
+  font-size: 0.9375rem;
+  border-radius: 5px;
+  line-height: 1.4;
+}
+[data-slot="button"][data-variant="outline"] {
+  border-color: var(--input);
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: var(--shadow);
+}
+[data-slot="button"][data-variant="outline"]:hover {
+  background: var(--muted);
+}
+[data-slot="input"] {
+  min-height: 44px;
+  border-color: var(--input);
+  background: var(--card);
+  font-size: 1rem;
+  border-radius: 5px;
+}
+[data-slot="label"] {
+  font-size: 0.9375rem;
+}
+form > [data-slot="button"] {
+  justify-self: start;
+}
+form .review-check {
+  display: flex;
+  font-weight: 400;
+}
+.actions {
+  gap: 0.625rem;
+}
+.bill {
+  margin-top: 1.25rem;
+  padding-block: 1.25rem;
+  border-color: var(--border);
+}
+.bill > h3 {
+  font-size: 1rem;
+  margin-bottom: 0.375rem;
+}
+.bill > p {
+  font-size: 0.9375rem;
+}
+.bill .actions {
+  margin-top: 1rem;
+}
+.bill > ul {
+  margin: 1rem 0;
+  padding-left: 1.25rem;
+  color: var(--muted-foreground);
+}
+details > summary {
+  font-weight: 500;
+  font-size: 0.9375rem;
+  color: var(--foreground);
+}
+details[open] > summary {
+  margin-bottom: 1rem;
+}
+details > form {
+  margin-top: 0.75rem;
+}
+.review-form {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.875rem;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--background);
+}
+.review-form label {
+  margin: 0;
+  flex: 1 1 12rem;
+}
+.review-form + p {
+  margin-top: 0.625rem;
+  font-size: 0.875rem;
+}
+.review-check {
+  line-height: 1.5;
+}
+.review-result {
+  margin: 1.5rem 0;
+}
+.review-summary-card {
+  border-radius: 7px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--input);
+  gap: 0;
+  padding: 0;
+  overflow: visible;
+}
+.review-summary-content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  padding: 1.5rem;
+  gap: 1.5rem;
+}
+.review-summary-heading {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+.review-summary-heading h2 {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.review-summary-heading [data-slot="badge"] {
+  border-color: var(--border);
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  white-space: normal;
+}
+.review-total {
+  font-family: "Geist Mono Variable", ui-monospace, monospace;
+  font-size: clamp(2.25rem, 7vw, 3.5rem);
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: -0.065em;
+  margin: 0.875rem 0;
+  overflow-wrap: anywhere;
+}
+.review-total-unknown {
+  font-family: inherit;
+  font-size: clamp(1.75rem, 5vw, 2.5rem);
+  letter-spacing: -0.04em;
+}
+.review-summary-lead > p {
+  font-size: 0.9375rem;
+  max-width: 32rem;
+  margin: 0;
+}
+.review-metrics {
+  display: grid;
+  gap: 0;
+  margin: 0;
+}
+.review-metrics > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.875rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.review-metrics > div:last-child {
+  border-bottom: 0;
+}
+.review-metrics dt {
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+  line-height: 1.5;
+}
+.review-metrics dd {
+  font-family: "Geist Mono Variable", ui-monospace, monospace;
+  font-size: 0.9375rem;
+  margin: 0;
+}
+.review-result-notes {
+  border-top: 1px solid var(--border);
+  background: var(--background);
+  padding: 1rem 1.5rem;
+  border-radius: 0 0 7px 7px;
+  font-size: 0.9375rem;
+  color: var(--muted-foreground);
+}
+.review-result-notes ul {
+  margin: 0;
+  padding-left: 1.25rem;
+  list-style: disc;
+}
+.review-result-notes p {
+  margin-bottom: 0.75rem;
+}
+.review-result-notes > :last-child {
+  margin-bottom: 0;
+}
+.review-alert {
+  margin: 1rem 0;
+  padding: 1rem;
+  border-color: var(--destructive-border);
+  background: var(--destructive-bg);
+}
+.action-status:not(:empty) {
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--input);
+  border-radius: 4px;
+  background: var(--muted);
+  font-size: 0.9375rem;
+}
+.amount,
+.monthly-total,
+.overview-bill > summary > strong,
+.flow-story-totals dd,
+.bill-day {
+  font-family: "Geist Mono Variable", ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.035em;
+}
+.transaction-date {
+  font-family: "Geist Mono Variable", ui-monospace, monospace;
+}
+.flow-scroll,
+.flow-chart {
+  background: var(--card);
+  border-radius: 6px;
+}
+.flow-scroll svg {
+  fill: var(--foreground);
+}
+.flow-settings {
+  box-shadow: 0 20px 80px rgb(0 0 0 / 25%);
+}
+table th {
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+.table-wrap {
+  border-radius: 6px;
+}
+footer {
+  border-top: 1px solid var(--border);
+  margin-top: 1.5rem;
+  padding-block: 1rem;
+  font-size: 0.8125rem;
+  gap: 1rem;
+}
+@media (min-width: 760px) {
+  .panel {
+    padding: 1.5rem;
+  }
+  .review-summary-content {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    gap: 2.5rem;
+    padding: 2rem;
+  }
+  .review-metrics {
+    border-left: 1px solid var(--border);
+    padding-left: 2rem;
+  }
+}
+@media (max-width: 480px) {
+  main {
+    padding-inline: max(16px, env(safe-area-inset-left))
+      max(16px, env(safe-area-inset-right));
+  }
+  .app-caption {
+    display: none;
+  }
+  .page-nav {
+    gap: 2px;
+    margin-bottom: 1.5rem;
+  }
+  .page-nav a {
+    flex-basis: 30%;
+    padding-inline: 0.375rem;
+    font-size: 0.8125rem;
+  }
+  .panel {
+    padding: 1rem;
+  }
+  .review-summary-content {
+    padding: 1.25rem;
+  }
+  .actions > button {
+    flex: 1 1 auto;
+  }
+  .review-form {
+    padding: 0.75rem;
+  }
+  .review-metrics > div {
+    align-items: start;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+@media (prefers-contrast: more) {
+  :root {
+    --muted-foreground: var(--foreground);
+    --border: var(--input);
+  }
+}
+.review-context {
+  font-family: "Geist Mono Variable", ui-monospace, monospace;
+  font-size: 0.75rem !important;
+  letter-spacing: 0.015em;
+  margin-bottom: 1rem !important;
+  color: var(--muted-foreground);
+}
+/* Tailwind's reset removes the browser's automatic modal centering. */
+dialog { margin:auto; }

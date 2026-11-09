@@ -125,13 +125,13 @@ export default function MoneyFlow({ api }: any) {
   }
   const maxAmount = Math.max(1, ...network.links.map((e: any) => e.amount));
   const colors: any = {
-    Income: "#25634b",
-    Bill: "#62418a",
-    Spending: "#94634b",
-    "Other inflow": "#6d7c62",
-    "Debt payment": "#9a6840",
-    "Debt payoff": "#9a6840",
-    "Internal transfer": "#3569a6",
+    Income: "var(--flow-income)",
+    Bill: "var(--flow-bill)",
+    Spending: "var(--flow-spending)",
+    "Other inflow": "var(--flow-other)",
+    "Debt payment": "var(--flow-debt)",
+    "Debt payoff": "var(--flow-debt)",
+    "Internal transfer": "var(--flow-transfer)",
   };
   const paths = network.links.map((e: any) => {
     const a = nodes.find((n: any) => n.id === e.source),
@@ -440,8 +440,10 @@ export default function MoneyFlow({ api }: any) {
                         cx={n.x}
                         cy={n.y}
                         r={24}
-                        fill={focusNode === n.id ? "#18181b" : "white"}
-                        stroke="#34343c"
+                        fill={
+                          focusNode === n.id ? "var(--primary)" : "var(--card)"
+                        }
+                        stroke="var(--input)"
                         strokeWidth={2}
                       />
                       <text
@@ -449,7 +451,11 @@ export default function MoneyFlow({ api }: any) {
                         y={n.y + 5}
                         textAnchor="middle"
                         fontSize="13"
-                        fill={focusNode === n.id ? "white" : "#18181b"}
+                        fill={
+                          focusNode === n.id
+                            ? "var(--primary-foreground)"
+                            : "var(--foreground)"
+                        }
                       >
                         {n.kind === "Account"
                           ? "A"

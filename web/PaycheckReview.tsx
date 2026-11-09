@@ -1,3 +1,7 @@
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import ExpectedAmountField from "./ExpectedAmountField";
 import { expectedPaycheck } from "./expectedPaycheck";
 import { paycheckDeposits } from "./paycheckDeposits";
@@ -109,9 +113,9 @@ export default function PaycheckReview({
           Paycheck Review
         </h1>
         {error ? <p role="alert">{error}</p> : <p>Loading review…</p>}
-        <button onClick={() => void load()} disabled={busy}>
+        <Button onClick={() => void load()} disabled={busy}>
           Retry
-        </button>
+        </Button>
       </section>
     );
   const depositSource =
@@ -283,15 +287,23 @@ export default function PaycheckReview({
         Paycheck Review
       </h1>
       <p>What work does this money have to do before you get replenished?</p>
-      <p role="status">{notice}</p>
+      <p role="status" className="action-status">
+        {notice}
+      </p>
       {error && (
-        <p role="alert" className="error">
-          {error}
-        </p>
+        <Alert variant="destructive" className="review-alert">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+      {projection && (
+        <ReviewSummary
+          projection={projection}
+          context={`${ledger.sources.find((s) => s.id === selectedPaycheck?.sourceId)?.name ?? "Paycheck"} · ${selectedPaycheck?.date ?? ""}`}
+        />
       )}
       <section className="panel">
         <h2>Start or resume</h2>
-        <label>
+        <Label>
           Paycheck
           <select
             value={selected}
@@ -305,7 +317,7 @@ export default function PaycheckReview({
               </option>
             ))}
           </select>
-        </label>
+        </Label>
         <IncomeSourceSetup
           sources={ledger.sources}
           accounts={data.evidence.accounts}
@@ -367,7 +379,7 @@ export default function PaycheckReview({
               })
             }
           >
-            <label>
+            <Label>
               Income source
               <select
                 name="source"
@@ -381,15 +393,15 @@ export default function PaycheckReview({
                   </option>
                 ))}
               </select>
-            </label>
-            <label>
+            </Label>
+            <Label>
               Paycheck status
               <select name="state">
                 <option value="received">Arrived</option>
                 <option value="expected">Expected future paycheck</option>
               </select>
-            </label>
-            <label>
+            </Label>
+            <Label>
               Posted deposit (for arrived paycheck)
               <select
                 name="deposit"
@@ -410,8 +422,8 @@ export default function PaycheckReview({
                   </option>
                 ))}
               </select>
-            </label>
-            <p role="status">
+            </Label>
+            <p role="status" className="action-status">
               {depositSource
                 ? `Showing unused posted USD deposits into ${data.evidence.accounts.find((a: any) => a.id === depositSource.accountId)?.name ?? "the mapped account"}.`
                 : "Set up an income source first."}
@@ -430,15 +442,15 @@ export default function PaycheckReview({
                 data.asOf,
               )}
             />
-            <label>
+            <Label>
               Expected arrival (future paycheck only)
-              <input name="date" type="date" />
-            </label>
-            <label>
+              <Input name="date" type="date" />
+            </Label>
+            <Label>
               Following payday for this source
-              <input name="next" type="date" required />
-            </label>
-            <button>Add paycheck</button>
+              <Input name="next" type="date" required />
+            </Label>
+            <Button>Add paycheck</Button>
           </form>
         </details>
       </section>
@@ -453,7 +465,7 @@ export default function PaycheckReview({
           <div className="bill" key={source.id}>
             <h3>{source.name}</h3>
             <div className="actions">
-              <button
+              <Button
                 disabled={busy}
                 onClick={async () => {
                   setBusy(true);
@@ -475,10 +487,10 @@ export default function PaycheckReview({
                 }}
               >
                 Refresh card data
-              </button>
-              <button
+              </Button>
+              <Button
                 disabled={busy || dirty}
-                className="secondary"
+                variant="outline"
                 onClick={() => {
                   void onCardConsent(source.id).catch((e) =>
                     setError(e.message),
@@ -486,7 +498,7 @@ export default function PaycheckReview({
                 }}
               >
                 Authorize card data
-              </button>
+              </Button>
             </div>
             {dirty && (
               <p>Save this review before opening bank authorization.</p>
@@ -509,8 +521,8 @@ export default function PaycheckReview({
               {c.issue ? ` · ${c.issue}` : ""}
             </p>
             {selectedPaycheck && (
-              <button
-                className="secondary"
+              <Button
+                variant="outline"
                 onClick={() => {
                   setEditing({
                     id: newId(),
@@ -531,7 +543,7 @@ export default function PaycheckReview({
                 }}
               >
                 Review statement suggestion
-              </button>
+              </Button>
             )}
           </article>
         ))}
@@ -552,7 +564,7 @@ export default function PaycheckReview({
                 ? "Future income: never safe to spend"
                 : "Received paycheck"}
             </p>
-            <label>
+            <Label>
               Next payday
               <input
                 type="date"
@@ -565,7 +577,7 @@ export default function PaycheckReview({
                   })
                 }
               />
-            </label>
+            </Label>
             {selectedPaycheck.state === "expected" && (
               <form
                 onSubmit={(e) =>
@@ -592,19 +604,19 @@ export default function PaycheckReview({
                   )}
                 />
 
-                <label>
+                <Label>
                   Expected arrival date
-                  <input
+                  <Input
                     name="expectedDate"
                     type="date"
                     defaultValue={selectedPaycheck.date}
                     required
                   />
-                </label>
-                <button>Update expected paycheck</button>
+                </Label>
+                <Button>Update expected paycheck</Button>
               </form>
             )}
-            <label className="review-check">
+            <Label className="review-check">
               <input
                 type="checkbox"
                 checked={selectedPaycheck.commitmentsConfirmed}
@@ -618,7 +630,7 @@ export default function PaycheckReview({
               I have included predictable commitments and all card spending
               already incurred. Statement amounts exclude payments already
               recorded here.
-            </label>
+            </Label>
             <p>
               Check bank debits since this deposit too. Unrecorded spending
               makes the remaining amount unreliable.
@@ -648,7 +660,7 @@ export default function PaycheckReview({
                   })
                 }
               >
-                <label>
+                <Label>
                   Actual posted deposit
                   <select name="deposit" required>
                     <option value="">Choose deposit</option>
@@ -663,8 +675,8 @@ export default function PaycheckReview({
                       </option>
                     ))}
                   </select>
-                </label>
-                <button>Confirm arrival and review actual amount</button>
+                </Label>
+                <Button>Confirm arrival and review actual amount</Button>
               </form>
               <p>
                 Existing funding promises stay attached. If the amount or timing
@@ -672,7 +684,7 @@ export default function PaycheckReview({
               </p>
             </section>
           )}
-          {projection && <ReviewSummary projection={projection} />}
+
           {unassigned.length > 0 && (
             <section className="panel">
               <h2>Card purchases to assign</h2>
@@ -714,7 +726,7 @@ export default function PaycheckReview({
           )}
           <section className="panel">
             <h2>Add or correct an obligation</h2>
-            <button
+            <Button
               type="button"
               onClick={() => {
                 setEditing(null);
@@ -722,7 +734,7 @@ export default function PaycheckReview({
               }}
             >
               Add obligation
-            </button>
+            </Button>
             {showObligation && (
               <ReviewObligationForm
                 editing={editing}
@@ -764,7 +776,7 @@ export default function PaycheckReview({
                 })
               }
             >
-              <label>
+              <Label>
                 Posted debit
                 <select name="tx" required>
                   <option value="">Choose transaction</option>
@@ -787,8 +799,8 @@ export default function PaycheckReview({
                       </option>
                     ))}
                 </select>
-              </label>
-              <button>Record cash used</button>
+              </Label>
+              <Button>Record cash used</Button>
             </form>
             {ledger.settlements
               .filter((s) => s.paycheckId === selected)
@@ -796,9 +808,9 @@ export default function PaycheckReview({
                 <p key={s.id}>
                   {reviewMoney(s.amountMinor)} ·{" "}
                   {s.obligationId ? "Obligation payment" : "Other cash used"}{" "}
-                  <button
+                  <Button
                     type="button"
-                    className="secondary"
+                    variant="outline"
                     onClick={() =>
                       run(() => {
                         if (
@@ -816,16 +828,20 @@ export default function PaycheckReview({
                     }
                   >
                     Remove recorded payment
-                  </button>
+                  </Button>
                 </p>
               ))}
           </details>
           <section className="panel">
             <div className="actions">
-              <button disabled={busy} onClick={() => void save()}>
+              <Button
+                variant="outline"
+                disabled={busy}
+                onClick={() => void save()}
+              >
                 Save review
-              </button>
-              <button
+              </Button>
+              <Button
                 disabled={
                   busy ||
                   !projection ||
@@ -835,9 +851,9 @@ export default function PaycheckReview({
                 onClick={() => void save(true)}
               >
                 Finish review
-              </button>
-              <button
-                className="secondary"
+              </Button>
+              <Button
+                variant="outline"
                 disabled={busy}
                 onClick={() => {
                   if (
@@ -848,7 +864,7 @@ export default function PaycheckReview({
                 }}
               >
                 Reload saved review
-              </button>
+              </Button>
             </div>
             <p>
               {dirty ? "Unsaved changes." : "Saved inputs."} Reservations do not

@@ -1,3 +1,6 @@
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import React from "react";
 import type {
   ReviewLedger,
@@ -60,7 +63,7 @@ export default function ReviewObligationForm({
         })
       }
     >
-      <label>
+      <Label>
         Kind
         <select name="kind" defaultValue={editing?.kind ?? "commitment"}>
           <option value="commitment">
@@ -71,17 +74,17 @@ export default function ReviewObligationForm({
             Purchases for next credit card statement
           </option>
         </select>
-      </label>
-      <label>
+      </Label>
+      <Label>
         Name
-        <input
+        <Input
           name="name"
           required
           maxLength={150}
           defaultValue={editing?.name}
         />
-      </label>
-      <label>
+      </Label>
+      <Label>
         Payment account or card
         <select
           name="account"
@@ -98,8 +101,8 @@ export default function ReviewObligationForm({
             </option>
           ))}
         </select>
-      </label>
-      <label>
+      </Label>
+      <Label>
         Existing commitment (optional)
         <select name="plan" defaultValue={editing?.planId ?? ""}>
           <option value="">Manual obligation</option>
@@ -110,7 +113,7 @@ export default function ReviewObligationForm({
             </option>
           ))}
         </select>
-      </label>
+      </Label>
       <p>
         Use planned commitments as a reference. Confirm the actual due amount
         and date; monthly estimates are not payment deadlines. Purchases paid by
@@ -130,7 +133,7 @@ export default function ReviewObligationForm({
             ),
           )
           .map((t: any) => (
-            <label className="review-check" key={t.id}>
+            <Label className="review-check" key={t.id}>
               <input
                 type="checkbox"
                 name="purchase"
@@ -148,20 +151,20 @@ export default function ReviewObligationForm({
               }{" "}
               · {t.name} · ${t.amount}
               {t.pending ? " · pending" : ""}
-            </label>
+            </Label>
           ))}
       </details>
-      <label>
+      <Label>
         Card cycle label (unique per card)
-        <input
+        <Input
           name="cycle"
           placeholder="2026-11 statement"
           defaultValue={editing?.statementKey ?? ""}
         />
-      </label>
-      <label>
+      </Label>
+      <Label>
         Total amount before payments recorded in this review
-        <input
+        <Input
           name="amount"
           inputMode="decimal"
           defaultValue={
@@ -170,24 +173,24 @@ export default function ReviewObligationForm({
               : formatReviewMoney(editing.amountMinor)
           }
         />
-      </label>
-      <label>
+      </Label>
+      <Label>
         Due date
-        <input name="due" type="date" defaultValue={editing?.dueDate ?? ""} />
-      </label>
-      <label>
+        <Input name="due" type="date" defaultValue={editing?.dueDate ?? ""} />
+      </Label>
+      <Label>
         Funding needed by
-        <input
+        <Input
           name="needed"
           type="date"
           defaultValue={editing?.neededBy ?? ""}
         />
-      </label>
+      </Label>
       <p>
         Allow time for your payment route. A later paycheck must arrive by this
         date to help.
       </p>
-      <label className="review-check">
+      <Label className="review-check">
         <input
           type="checkbox"
           name="confirmed"
@@ -195,11 +198,11 @@ export default function ReviewObligationForm({
         />
         I confirmed this amount, dates, and that it does not overlap another
         obligation.
-      </label>
-      <button>Apply obligation</button>
-      <button type="button" className="secondary" onClick={onDone}>
+      </Label>
+      <Button>Apply obligation</Button>
+      <Button type="button" variant="outline" onClick={onDone}>
         Cancel
-      </button>
+      </Button>
     </form>
   );
 }

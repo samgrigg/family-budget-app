@@ -1,3 +1,6 @@
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import React, { useState } from "react";
 import type { FundingSource } from "../shared/paycheckReview";
 export default function IncomeSourceSetup({
@@ -43,7 +46,9 @@ export default function IncomeSourceSetup({
         Assign an employer to an existing account. This does not connect a bank
         or import transactions.
       </p>
-      <p role="status">{message}</p>
+      <p role="status" className="action-status">
+        {message}
+      </p>
       {error && (
         <p role="alert" className="error">
           {error}
@@ -79,7 +84,7 @@ export default function IncomeSourceSetup({
           }
         }}
       >
-        <label>
+        <Label>
           Income source to add or correct
           <select
             value={selected}
@@ -97,10 +102,10 @@ export default function IncomeSourceSetup({
               </option>
             ))}
           </select>
-        </label>
-        <label>
+        </Label>
+        <Label>
           Employer
-          <input
+          <Input
             name="name"
             placeholder="Canyons or Adobe"
             required
@@ -108,8 +113,8 @@ export default function IncomeSourceSetup({
             defaultValue={source?.name ?? ""}
             disabled={saving || busy}
           />
-        </label>
-        <label>
+        </Label>
+        <Label>
           Paycheck account
           <select
             name="account"
@@ -127,14 +132,14 @@ export default function IncomeSourceSetup({
                 </option>
               ))}
           </select>
-        </label>
-        <button type="submit" disabled={saving || busy}>
+        </Label>
+        <Button type="submit" disabled={saving || busy}>
           {saving
             ? "Saving income source…"
             : source
               ? "Save income source"
               : "Add income source"}
-        </button>
+        </Button>
       </form>
     </details>
   );

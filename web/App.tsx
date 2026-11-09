@@ -291,8 +291,14 @@ export default function App() {
       </a>
       <header>
         <a className="brand" href="/">
+          <span className="brand-mark" aria-hidden="true">
+            <i />
+            <i />
+            <i />
+          </span>
           <span>Family Budget</span>
         </a>
+        <span className="app-caption">Household finances</span>
       </header>
       <nav className="page-nav" aria-label="Main navigation">
         <a
