@@ -1,6 +1,6 @@
 # Zinc UI foundation and aesthetic pass
 
-Status: proposed design for owner review. Owner chose "Follow the system".
+Status: approved by owner ("yup go ahead"). Owner chose "Follow the system".
 
 ## Visual direction
 
