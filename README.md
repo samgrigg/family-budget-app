@@ -181,3 +181,8 @@ Keyboard skip-link focus worked; date inputs were corrected to at least 44px.
 VoiceOver, effective enlarged text/zoom, every error path, actual-device use,
 and real Sandbox consent/statement retrieval remain unverified. No real bank
 data or credentials were used for this verification.
+
+Income-source setup now saves immediately, independently of paycheck creation.
+The saved employer/account mapping is listed beside the form; successful saves
+and errors appear there too. Editing an existing source prefills its name and
+account. Saving a source preserves unrelated unsaved review changes.

@@ -1,3 +1,5 @@
+import IncomeSourceSetup from "./IncomeSourceSetup";
+import { saveIncomeSource } from "./saveIncomeSource";
 import ReviewObligationForm from "./ReviewObligationForm";
 import {
   unassignedPurchases,
@@ -293,57 +295,31 @@ export default function PaycheckReview({
             ))}
           </select>
         </label>
-        <details>
-          <summary>Set up an income source</summary>
-          <form
-            onSubmit={(e) =>
-              submit(e, (f) =>
-                patch("sources", {
-                  id: field(f, "existingSource") || newId(),
-                  name: field(f, "name"),
-                  accountId: field(f, "account"),
-                  incomeKey: null,
-                }),
-              )
+        <IncomeSourceSetup
+          sources={ledger.sources}
+          accounts={data.evidence.accounts}
+          busy={busy}
+          onSave={async (source) => {
+            setBusy(true);
+            try {
+              const saved = await saveIncomeSource(api, data, ledger, source);
+              setData(saved.data);
+              setLedger((current) =>
+                current
+                  ? {
+                      ...current,
+                      revision: saved.ledger.revision,
+                      sources: saved.ledger.sources,
+                    }
+                  : saved.ledger,
+              );
+              return saved.data.idMap?.[source.id] ?? source.id;
+            } finally {
+              setBusy(false);
             }
-          >
-            <label>
-              Income source to add or correct
-              <select name="existingSource">
-                <option value="">New income source</option>
-                {ledger.sources.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Employer
-              <input
-                name="name"
-                placeholder="Canyons or Adobe"
-                required
-                maxLength={150}
-              />
-            </label>
-            <label>
-              Paycheck account
-              <select name="account" required>
-                <option value="">Choose account</option>
-                {data.evidence.accounts
-                  .filter((a: any) => a.type !== "credit")
-                  .map((a: any) => (
-                    <option key={a.id} value={a.id}>
-                      {a.name}
-                      {a.included ? "" : " · hidden from budgets"}
-                    </option>
-                  ))}
-              </select>
-            </label>
-            <button>Add income source</button>
-          </form>
-        </details>
+          }}
+        />
+
         <details open={!selectedPaycheck}>
           <summary>Add an arrived or expected paycheck</summary>
           <form
