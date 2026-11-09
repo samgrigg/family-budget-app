@@ -102,6 +102,8 @@ financial data was checked during this discovery.
   reconcile without reducing available money twice.
 - How to present and persist adjustable contributions across reviews.
 - How incomplete information affects whether an answer can be shown.
+- How contributions from different institutions reach the paying account
+  in time, including any required transfer or payment processing time.
 - Whether a systematic split can be recommended after the manual review
   flow is understood. No percentage or optimization rule is assumed.
 
@@ -112,7 +114,15 @@ this document makes no accessibility conformance claim.
 
 ## Review status
 
-Checked against the owner's decisions in this conversation. The required
-Ninth House review remains pending: its prescribed models, `4.8 Fast` and
-`Claude Code 5.5`, are not available in this session. This use-case record
-does not mark the broader design/brainstorming round complete.
+Checked against the owner's decisions in this conversation. The owner
+waived the separate-model requirement for this round. Both Ninth House
+review voices were generated with the current model.
+
+- Gideon: keep promised future contributions distinct from cash already
+  reserved, and avoid counting purchases again when card payments occur.
+- Harrow: coverage requires money to reach the paying account before the
+  due date; explicitly resolve transfer timing alongside statement data
+  and payment reconciliation in the implementation design.
+
+Verdict: proceed with the agreed use case. These design questions remain
+explicit; this is not a completed implementation design.
