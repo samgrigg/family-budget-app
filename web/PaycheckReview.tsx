@@ -1,3 +1,8 @@
+import ReviewObligationForm from "./ReviewObligationForm";
+import {
+  unassignedPurchases,
+  unassignedCashDebits,
+} from "../shared/reviewPurchases";
 import React, { useEffect, useState } from "react";
 import type {
   ReviewLedger,
@@ -13,8 +18,10 @@ const newId = () => `tmp:${crypto.randomUUID()}`;
 const field = (f: FormData, k: string) => String(f.get(k) ?? "");
 export default function PaycheckReview({
   api,
+  onCardConsent,
 }: {
   api: (path: string, body?: any) => Promise<any>;
+  onCardConsent: (sourceId: string) => Promise<void>;
 }) {
   const [data, setData] = useState<any>(null),
     [ledger, setLedger] = useState<ReviewLedger | null>(null),
@@ -81,6 +88,14 @@ export default function PaycheckReview({
       document.removeEventListener("click", navigate, true);
     };
   }, [dirty]);
+  useEffect(() => {
+    if (showObligation)
+      requestAnimationFrame(() => {
+        const form = document.getElementById("review-obligation-form");
+        form?.scrollIntoView({ block: "start" });
+        form?.querySelector<HTMLElement>("select")?.focus();
+      });
+  }, [showObligation, editing?.id]);
   if (!data || !ledger)
     return (
       <section className="panel">
@@ -97,20 +112,32 @@ export default function PaycheckReview({
   const projection = selectedPaycheck
     ? previewReview(ledger, selected, data.asOf)
     : null;
+  const unassigned = unassignedPurchases(
+    ledger,
+    data.evidence.transactions,
+    data.evidence.accounts,
+  );
+  const unassignedCash = unassignedCashDebits(
+    ledger,
+    data.evidence.transactions,
+  ).filter((t) => t.paycheckId === selected);
   if (projection) {
     const server = data.projections.find((p: any) => p.paycheckId === selected);
     if (
       (!dirty &&
         server?.issues.some((i: any) => i.code === "EVIDENCE_CHANGED")) ||
-      data.evidence.issues.length
+      data.evidence.issues.length ||
+      unassignedCash.length ||
+      unassigned.length
     ) {
       projection.safeToSpendMinor = null;
       projection.leftoverMinor = null;
       projection.issues.push({
         code: "EVIDENCE_CHANGED",
         recordId: selected,
-        message:
-          "Bank or plan evidence needs confirmation. Review the data and save again.",
+        message: unassigned.length
+          ? "Assign imported card purchases to an obligation before using safe to spend."
+          : "Bank or plan evidence needs confirmation. Review the data and save again.",
       });
     }
   }
@@ -272,7 +299,7 @@ export default function PaycheckReview({
             onSubmit={(e) =>
               submit(e, (f) =>
                 patch("sources", {
-                  id: newId(),
+                  id: field(f, "existingSource") || newId(),
                   name: field(f, "name"),
                   accountId: field(f, "account"),
                   incomeKey: null,
@@ -280,6 +307,17 @@ export default function PaycheckReview({
               )
             }
           >
+            <label>
+              Income source to add or correct
+              <select name="existingSource">
+                <option value="">New income source</option>
+                {ledger.sources.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label>
               Employer
               <input
@@ -369,7 +407,9 @@ export default function PaycheckReview({
                       !t.pending &&
                       t.amount.startsWith("-") &&
                       t.currency === "USD" &&
-                      !ledger.paychecks.some((p) => p.transactionId === t.id),
+                      !ledger.paychecks.some(
+                        (p) => p.id !== selected && p.transactionId === t.id,
+                      ),
                   )
                   .map((t: any) => (
                     <option key={t.id} value={t.id}>
@@ -400,6 +440,100 @@ export default function PaycheckReview({
           </form>
         </details>
       </section>
+      <details className="panel">
+        <summary>Card statement data</summary>
+        <p>
+          Refresh supported card data on request. It may be cached by your bank.
+          Confirm the unpaid amount after payments; the original statement
+          balance is not necessarily still owed.
+        </p>
+        {data.cardSources?.map((source: any) => (
+          <div className="bill" key={source.id}>
+            <h3>{source.name}</h3>
+            <div className="actions">
+              <button
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  setError("");
+                  try {
+                    const r = await api(
+                      `/paycheck-review/card-data/${encodeURIComponent(source.id)}/refresh`,
+                      {},
+                    );
+                    setData({ ...data, cardData: r.cardData });
+                    setNotice(
+                      "Card suggestions refreshed. Confirm the amounts before applying them.",
+                    );
+                  } catch (e: any) {
+                    setError(e.message);
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                Refresh card data
+              </button>
+              <button
+                disabled={busy || dirty}
+                className="secondary"
+                onClick={() => {
+                  void onCardConsent(source.id).catch((e) =>
+                    setError(e.message),
+                  );
+                }}
+              >
+                Authorize card data
+              </button>
+            </div>
+            {dirty && (
+              <p>Save this review before opening bank authorization.</p>
+            )}
+          </div>
+        ))}
+        {data.cardData?.map((c: any) => (
+          <article className="bill" key={c.sourceId + c.accountId}>
+            <h3>
+              {data.evidence.accounts.find((a: any) => a.id === c.accountId)
+                ?.name ?? "Card"}
+            </h3>
+            <p>
+              Original statement {reviewMoney(c.statementBalanceMinor)} · Issued{" "}
+              {c.statementDate ?? "unknown"} · Due{" "}
+              {c.paymentDueDate ?? "unknown"}
+            </p>
+            <p>
+              Retrieved {c.fetchedAt ?? "not yet"}
+              {c.issue ? ` · ${c.issue}` : ""}
+            </p>
+            {selectedPaycheck && (
+              <button
+                className="secondary"
+                onClick={() => {
+                  setEditing({
+                    id: newId(),
+                    kind: "statement",
+                    name: "Card statement",
+                    accountId: c.accountId,
+                    fundingSourceId: null,
+                    planId: null,
+                    statementKey: c.statementDate ?? null,
+                    amountMinor: c.statementBalanceMinor,
+                    currency: "USD",
+                    dueDate: c.paymentDueDate,
+                    neededBy: null,
+                    basis: "provider",
+                    confirmed: false,
+                  });
+                  setShowObligation(true);
+                }}
+              >
+                Review statement suggestion
+              </button>
+            )}
+          </article>
+        ))}
+      </details>
       {selectedPaycheck && (
         <>
           <section className="panel">
@@ -430,6 +564,42 @@ export default function PaycheckReview({
                 }
               />
             </label>
+            {selectedPaycheck.state === "expected" && (
+              <form
+                onSubmit={(e) =>
+                  submit(e, (f) =>
+                    patch("paychecks", {
+                      ...selectedPaycheck,
+                      amountMinor: parseReviewMoney(field(f, "expectedAmount")),
+                      date: field(f, "expectedDate"),
+                      commitmentsConfirmed: false,
+                    }),
+                  )
+                }
+              >
+                <label>
+                  Expected amount
+                  <input
+                    name="expectedAmount"
+                    inputMode="decimal"
+                    defaultValue={formatReviewMoney(
+                      selectedPaycheck.amountMinor,
+                    )}
+                    required
+                  />
+                </label>
+                <label>
+                  Expected arrival date
+                  <input
+                    name="expectedDate"
+                    type="date"
+                    defaultValue={selectedPaycheck.date}
+                    required
+                  />
+                </label>
+                <button>Update expected paycheck</button>
+              </form>
+            )}
             <label className="review-check">
               <input
                 type="checkbox"
@@ -450,9 +620,12 @@ export default function PaycheckReview({
               makes the remaining amount unreliable.
             </p>
           </section>
-          {selectedPaycheck.state === "expected" && (
+          {(selectedPaycheck.state === "expected" ||
+            data.projections
+              .find((p: any) => p.paycheckId === selected)
+              ?.issues.some((i: any) => i.code === "EVIDENCE_CHANGED")) && (
             <section className="panel">
-              <h2>This paycheck arrived</h2>
+              <h2>Confirm posted paycheck</h2>
               <form
                 onSubmit={(e) =>
                   submit(e, (f) => {
@@ -504,6 +677,39 @@ export default function PaycheckReview({
             </section>
           )}
           {projection && <ReviewSummary projection={projection} />}
+          {unassigned.length > 0 && (
+            <section className="panel">
+              <h2>Card purchases to assign</h2>
+              <p>
+                Add or edit a card obligation below and select its imported
+                purchases.
+              </p>
+              <ul>
+                {unassigned.map((t) => (
+                  <li key={t.id}>
+                    {t.date} · {t.name} · ${t.amount}
+                    {t.pending ? " · pending" : ""}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+          {unassignedCash.length > 0 && (
+            <section className="panel">
+              <h2>Cash movements to review</h2>
+              <p>
+                Record an obligation payment above or other cash use below.
+                These posted debits are not yet accounted for.
+              </p>
+              <ul>
+                {unassignedCash.map((t) => (
+                  <li key={t.id}>
+                    {t.date} · {t.name} · ${t.amount}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           {sections && (
             <>
               <ReviewCommitments {...sections} />
@@ -522,163 +728,26 @@ export default function PaycheckReview({
               Add obligation
             </button>
             {showObligation && (
-              <form
-                key={editing?.id ?? "new"}
-                onSubmit={(e) =>
-                  submit(e, (f) => {
-                    const amount = field(f, "amount");
-                    patch("obligations", {
-                      id: editing?.id ?? newId(),
-                      kind: field(f, "kind"),
-                      name: field(f, "name"),
-                      accountId: field(f, "account"),
-                      fundingSourceId:
-                        field(f, "kind") === "commitment"
-                          ? selectedPaycheck.sourceId
-                          : null,
-                      planId: field(f, "plan") || null,
-                      statementKey: field(f, "cycle") || null,
-                      amountMinor: amount ? parseReviewMoney(amount) : null,
-                      currency: "USD",
-                      dueDate: field(f, "due") || null,
-                      neededBy: field(f, "needed") || null,
-                      basis: "manual",
-                      confirmed: f.get("confirmed") === "on",
-                    });
-                    setShowObligation(false);
-                    setEditing(null);
-                  })
-                }
-              >
-                <label>
-                  Kind
-                  <select
-                    name="kind"
-                    defaultValue={editing?.kind ?? "commitment"}
-                  >
-                    <option value="commitment">
-                      Predictable commitment paid from cash
-                    </option>
-                    <option value="statement">
-                      Last credit card statement
-                    </option>
-                    <option value="unbilled">
-                      Purchases for next credit card statement
-                    </option>
-                  </select>
-                </label>
-                <label>
-                  Name
-                  <input
-                    name="name"
-                    required
-                    maxLength={150}
-                    defaultValue={editing?.name}
-                  />
-                </label>
-                <label>
-                  Payment account or card
-                  <select
-                    name="account"
-                    defaultValue={
-                      editing?.accountId ??
-                      ledger.sources.find(
-                        (s) => s.id === selectedPaycheck.sourceId,
-                      )?.accountId
-                    }
-                  >
-                    {data.evidence.accounts.map((a: any) => (
-                      <option key={a.id} value={a.id}>
-                        {a.name} · {a.type ?? "unknown"}
-                        {a.included ? "" : " · hidden"}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Existing commitment (optional)
-                  <select name="plan" defaultValue={editing?.planId ?? ""}>
-                    <option value="">Manual obligation</option>
-                    {data.evidence.plans.map((p: any) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} · {p.accountName} · {p.frequency} · day{" "}
-                        {p.day ?? "unknown"}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <p>
-                  Use planned commitments as a reference. Confirm the actual due
-                  amount and date; monthly estimates are not payment deadlines.
-                  Purchases paid by card belong in the card total, not here
-                  again.
-                </p>
-                <label>
-                  Card cycle label (unique per card)
-                  <input
-                    name="cycle"
-                    placeholder="2026-11 statement"
-                    defaultValue={editing?.statementKey ?? ""}
-                  />
-                </label>
-                <label>
-                  Total amount before payments recorded in this review
-                  <input
-                    name="amount"
-                    inputMode="decimal"
-                    defaultValue={
-                      editing?.amountMinor == null
-                        ? ""
-                        : formatReviewMoney(editing.amountMinor)
-                    }
-                  />
-                </label>
-                <label>
-                  Due date
-                  <input
-                    name="due"
-                    type="date"
-                    defaultValue={editing?.dueDate ?? ""}
-                  />
-                </label>
-                <label>
-                  Funding needed by
-                  <input
-                    name="needed"
-                    type="date"
-                    defaultValue={editing?.neededBy ?? ""}
-                  />
-                </label>
-                <p>
-                  Allow time for your payment route. A later paycheck must
-                  arrive by this date to help.
-                </p>
-                <label className="review-check">
-                  <input
-                    type="checkbox"
-                    name="confirmed"
-                    defaultChecked={editing?.confirmed}
-                  />
-                  I confirmed this amount, dates, and that it does not overlap
-                  another obligation.
-                </label>
-                <button>Apply obligation</button>
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => setShowObligation(false)}
-                >
-                  Cancel
-                </button>
-              </form>
+              <ReviewObligationForm
+                editing={editing}
+                ledger={ledger}
+                selectedPaycheck={selectedPaycheck}
+                data={data}
+                submit={submit}
+                patch={patch}
+                onDone={() => {
+                  setShowObligation(false);
+                  setEditing(null);
+                }}
+              />
             )}
           </section>
           <details className="panel">
-            <summary>Other cash spending and payment corrections</summary>
+            <summary>Other cash use and payment corrections</summary>
             <p>
-              Record direct spending from this paycheck that is not already a
-              reserved obligation. Link card payments through their obligation
-              above.
+              Record cash used or moved aside from this paycheck that is not
+              already a reserved obligation. Link card payments through their
+              obligation above.
             </p>
             <form
               onSubmit={(e) =>
@@ -723,14 +792,14 @@ export default function PaycheckReview({
                     ))}
                 </select>
               </label>
-              <button>Record direct spending</button>
+              <button>Record cash used</button>
             </form>
             {ledger.settlements
               .filter((s) => s.paycheckId === selected)
               .map((s) => (
                 <p key={s.id}>
                   {reviewMoney(s.amountMinor)} ·{" "}
-                  {s.obligationId ? "Obligation payment" : "Direct spending"}{" "}
+                  {s.obligationId ? "Obligation payment" : "Other cash used"}{" "}
                   <button
                     type="button"
                     className="secondary"

@@ -365,3 +365,15 @@ it("keeps an existing verified institution display name when provider branding c
   );
   f.store.db.close();
 });
+it("requests only additional card consent in update mode while preserving repair behavior", async () => {
+  const f = await fixture();
+  const response = await f.post("/api/data-sources/source/link-token", {
+    action: "card_data",
+  });
+  expect(response.status).toBe(200);
+  const body = f.calls.find((c) => c.path === "/link/token/create")!.body;
+  expect(body.additional_consented_products).toEqual(["liabilities"]);
+  expect(body.products).toBeUndefined();
+  expect(body.update).toBeUndefined();
+  f.store.db.close();
+});

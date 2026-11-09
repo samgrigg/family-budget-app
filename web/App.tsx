@@ -329,7 +329,12 @@ export default function App() {
           Money Flow
         </a>
       </nav>
-      {page === "paycheck-review" && <PaycheckReview api={api} />}
+      {page === "paycheck-review" && (
+        <PaycheckReview
+          api={api}
+          onCardConsent={(id) => startLink("card_data", id)}
+        />
+      )}
       {page === "budget" && <DataIssues issues={state?.dataIssues} />}
       {page === "money-flow" && <MoneyFlow api={api} />}
       {page === "income-overview" && (

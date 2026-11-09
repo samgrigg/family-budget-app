@@ -103,6 +103,7 @@ export function validateReviewLedger(s: Store, l: ReviewLedger) {
       fail("Expected paychecks cannot be counted as received cash.");
   }
   const statementKeys = new Set<string>();
+  const purchaseIds = new Set<string>();
   for (const o of l.obligations) {
     account(o.accountId);
     if (o.fundingSourceId) source(o.fundingSourceId);
@@ -127,6 +128,33 @@ export function validateReviewLedger(s: Store, l: ReviewLedger) {
       (o.dueDate && o.neededBy && o.neededBy > o.dueDate)
     )
       fail("Funding must arrive by the due date.");
+    if (o.transactionIds !== undefined) {
+      if (!Array.isArray(o.transactionIds))
+        fail("Choose valid purchase evidence.");
+      let linked = 0;
+      for (const id of o.transactionIds) {
+        if (purchaseIds.has(id))
+          fail("A card purchase cannot belong to two obligations.");
+        const t = tx.find((t) => t.id === id);
+        if (
+          !t ||
+          t.accountId !== o.accountId ||
+          t.currency !== o.currency ||
+          o.kind === "commitment"
+        )
+          fail("Card purchase evidence changed. Reassign it before saving.");
+        linked += Number(
+          t!.amount.startsWith("-")
+            ? -parseReviewMoney(t!.amount.slice(1))
+            : parseReviewMoney(t!.amount),
+        );
+        purchaseIds.add(id);
+      }
+      if (o.amountMinor !== null && linked > o.amountMinor)
+        fail(
+          "The obligation amount is smaller than its linked purchases and credits.",
+        );
+    }
     if (o.statementKey) {
       const key = JSON.stringify([o.accountId, o.statementKey]);
       if (statementKeys.has(key))

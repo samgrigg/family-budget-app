@@ -11,7 +11,7 @@ export default function ReviewSummary({
   return (
     <section className="panel review-summary" aria-label="Review result">
       <h2>Safe to spend</h2>
-      <strong className="review-total">
+      <strong className="review-total" aria-live="polite">
         {reviewMoney(p.safeToSpendMinor)}
       </strong>
       <p>

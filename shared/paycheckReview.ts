@@ -17,6 +17,7 @@ export type Paycheck = {
   commitmentsConfirmed: boolean;
 };
 export type Obligation = {
+  transactionIds?: string[];
   id: string;
   kind: "commitment" | "statement" | "unbilled";
   name: string;

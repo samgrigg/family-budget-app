@@ -288,6 +288,7 @@ export class SourceReplacements {
           user: { client_user_id: `family-budget-${this.store.env}` },
           client_name: "Family Budget",
           products: ["transactions"],
+          additional_consented_products: ["liabilities"],
           country_codes: ["US"],
           language: "en",
           transactions: { days_requested: o.requested_days },

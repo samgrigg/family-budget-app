@@ -129,3 +129,119 @@ it("changes evidence digest after a deposit modification", () => {
   expect(reviewEvidence(s, []).digest).not.toBe(before);
   s.db.close();
 });
+it("settles a shared statement from two sources without releasing reserved cash twice", () => {
+  const { s, l } = seeded();
+  s.connect("other", "synthetic", [
+    { account_id: "etrade", name: "Etrade", type: "depository" },
+  ]);
+  s.commit(
+    "other",
+    [
+      {
+        added: [
+          {
+            transaction_id: "dep2",
+            account_id: "etrade",
+            name: "Adobe",
+            amount: -200,
+            date: "2026-11-06",
+            pending: false,
+            iso_currency_code: "USD",
+          },
+          {
+            transaction_id: "paid2",
+            account_id: "etrade",
+            name: "Card payment",
+            amount: 200,
+            date: "2026-11-07",
+            pending: false,
+            iso_currency_code: "USD",
+          },
+        ],
+        modified: [],
+        removed: [],
+      },
+    ],
+    "c",
+    [],
+  );
+  s.commit(
+    "bank",
+    [
+      {
+        added: [
+          {
+            transaction_id: "paid1",
+            account_id: "macu",
+            name: "Card payment",
+            amount: 300,
+            date: "2026-11-07",
+            pending: false,
+            iso_currency_code: "USD",
+          },
+        ],
+        modified: [],
+        removed: [],
+      },
+    ],
+    "next",
+    [],
+  );
+  const etrade = s.repository.listAccounts().find((a) => a.name === "Etrade")!,
+    tx = s.repository.analyticalHistory("all");
+  l.sources.push({
+    id: "adobe",
+    name: "Adobe",
+    accountId: etrade.id,
+    incomeKey: null,
+  });
+  l.paychecks.push({
+    ...l.paychecks[0],
+    id: "adobe-pay",
+    sourceId: "adobe",
+    transactionId: tx.find((t) => t.name === "Adobe")!.id,
+    amountMinor: 20000,
+  });
+  l.contributions[1].amountMinor = 30000;
+  l.contributions.push({
+    id: "adobe-card",
+    paycheckId: "adobe-pay",
+    obligationId: "statement",
+    amountMinor: 20000,
+    paymentAccountId: etrade.id,
+    neededBy: "2026-11-17",
+  });
+  saveReviewLedger(s, 0, l);
+  const saved = readReviewLedger(s);
+  for (const [accountId, paycheckId, contributionId] of [
+    [l.sources[0].accountId, "macu-pay", "reserve-statement"],
+    [etrade.id, "adobe-pay", "adobe-card"],
+  ]) {
+    const t = tx.find(
+      (t) => t.accountId === accountId && t.name === "Card payment",
+    )!;
+    saved.settlements.push({
+      id: "settle-" + paycheckId,
+      paycheckId,
+      contributionId,
+      obligationId: "statement",
+      amountMinor: Number(t.amount) * 100,
+      transactionIds: [t.id],
+      confirmed: true,
+    });
+  }
+  const result = saveReviewLedger(s, 1, saved);
+  expect(projectReview(result, "macu-pay", "2026-11-08").safeToSpendMinor).toBe(
+    50000,
+  );
+  expect(
+    projectReview(result, "adobe-pay", "2026-11-08").safeToSpendMinor,
+  ).toBe(0);
+  expect(
+    projectReview(result, "macu-pay", "2026-11-08").obligationCoverage.find(
+      (c) => c.obligationId === "statement",
+    )!.paidMinor,
+  ).toBe(50000);
+  s.db.close();
+});
+import { projectReview } from "../shared/paycheckProjection";
