@@ -916,6 +916,145 @@ input[type="month"] {
 .plan-entry summary {
   overflow-wrap: anywhere;
 }
+.plan-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.plan-table caption {
+  text-align: left;
+  font-size: 1rem;
+  font-weight: 600;
+  padding-block: 1rem;
+}
+.plan-table thead {
+  position: static;
+  width: auto;
+  height: auto;
+  clip-path: none;
+  display: table-header-group;
+}
+.plan-table tbody {
+  display: table-row-group;
+}
+.plan-table tr {
+  display: table-row;
+  padding: 0;
+}
+.plan-table th,
+.plan-table td {
+  padding: 0.75rem;
+  vertical-align: top;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.plan-table thead th {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+.plan-table thead th:first-child {
+  width: 34%;
+}
+.plan-table tbody {
+  border-top: 1px solid var(--border);
+}
+.plan-table-row {
+  cursor: pointer;
+}
+.plan-table-row:hover,
+.plan-table-row:focus-within {
+  background: var(--muted);
+}
+.plan-table-row > th {
+  padding: 0;
+  font-size: 1rem;
+  font-weight: 500;
+}
+.plan-table button.plan-toggle {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-height: 44px;
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  padding: 0.75rem;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  text-align: left;
+  white-space: normal;
+}
+.plan-table .plan-table-row button.plan-toggle:hover:not(:disabled) {
+  background: transparent;
+  color: var(--foreground);
+}
+.plan-toggle > span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.plan-chevron {
+  flex-shrink: 0;
+}
+.plan-row-status,
+.plan-row-basis {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--muted-foreground);
+  font-size: 0.9375rem;
+  font-weight: 400;
+}
+.plan-row-amount strong {
+  font-size: 1.125rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.plan-entry-details {
+  padding: 0.75rem;
+}
+@media (max-width: 42rem) {
+  .plan-table,
+  .plan-table tbody,
+  .plan-table caption {
+    display: block;
+  }
+  .plan-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .plan-table .plan-table-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    gap: 0;
+  }
+  .plan-table td[data-label] {
+    padding-inline: 0.5rem;
+  }
+  .plan-table td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 0.25rem;
+    color: var(--muted-foreground);
+    font-size: 0.9375rem;
+  }
+  .plan-table-row > :nth-child(even) {
+    text-align: right;
+  }
+  .plan-table .plan-table-expansion,
+  .plan-table-expansion > td {
+    display: block;
+    width: 100%;
+  }
+  .plan-table-expansion > td,
+  .plan-entry-details {
+    padding-inline: 0;
+  }
+}
 
 .commitment-row {
   padding-block: 1.25rem 0.5rem;

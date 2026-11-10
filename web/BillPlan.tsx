@@ -41,7 +41,10 @@ export default function BillPlan({
   const entryKind = (r: any) => entryKinds[entryKindKey(r)] ?? r.kind;
   const endpoint = `/bill-plan?month=${month}`;
   const heading = useRef<HTMLHeadingElement>(null);
-  const entries = useRef(new Map<string, HTMLDetailsElement>());
+  const entries = useRef(new Map<string, HTMLTableSectionElement>());
+  const [expandedEntries, setExpandedEntries] = useState<
+    Record<string, boolean>
+  >({});
   const [advanceFrom, setAdvanceFrom] = useState<string | null>(null);
   useEffect(() => {
     if (saveError && (!activeTab || activeTab === "commitments"))
@@ -54,12 +57,17 @@ export default function BillPlan({
     if (!advanceFrom || !data || (activeTab && activeTab !== "commitments"))
       return;
     const current = entries.current.get(advanceFrom);
-    if (current) current.open = false;
     const nextId = nextBillToReview(data.records, advanceFrom);
     const next = nextId ? entries.current.get(nextId) : undefined;
-    if (next) next.open = true;
+    setExpandedEntries((previous) => ({
+      ...previous,
+      [advanceFrom]: false,
+      ...(nextId && next ? { [nextId]: true } : {}),
+    }));
     const target = next ?? current;
-    const focusTarget = target?.querySelector("summary") ?? heading.current;
+    const focusTarget =
+      target?.querySelector<HTMLButtonElement>("[data-plan-toggle]") ??
+      heading.current;
     focusTarget?.focus({ preventScroll: true });
     (target ?? heading.current)?.scrollIntoView({
       block: "start",
@@ -294,347 +302,447 @@ export default function BillPlan({
                     described in the README.
                   </p>
                 )}
-                {budgetPlanEntries(data.records).map((r: any) => (
-                  <details
-                    className="bill plan-entry"
-                    key={r.id}
-                    ref={(element) => {
-                      if (element) entries.current.set(r.id, element);
-                      else entries.current.delete(r.id);
-                    }}
-                  >
-                    <summary>
-                      {r.name} ·{" "}
-                      {r.status === "confirmed"
-                        ? "Confirmed"
-                        : r.status === "excluded"
-                          ? "Excluded"
-                          : "Needs review"}
-                    </summary>
-                    <p>
-                      Source: {r.source?.cell ?? r.id} · Original value:{" "}
-                      {r.source?.value}
-                      {r.source?.formula
-                        ? ` · Formula: =${r.source.formula}`
-                        : ""}
-                    </p>
-                    {r.sources?.length > 1 && (
-                      <details>
-                        <summary>
-                          Worksheet sources ({r.sources.length})
-                        </summary>
-                        <ul>
-                          {r.sources.map((source: any, i: number) => (
-                            <li key={i}>
-                              {source.cell} · Original value: {source.value}
-                              {source.formula
-                                ? ` · Formula: =${source.formula}`
-                                : ""}
-                            </li>
-                          ))}
-                        </ul>
-                      </details>
-                    )}
-                    <p>
-                      {r.resolvedAmount.amount === null
-                        ? "Amount unknown"
-                        : `${money(r.resolvedAmount.amount, r.currency)} · ${r.resolvedAmount.basis === "actual" ? "Actual paid" : r.resolvedAmount.basis === "known" ? "Known payment" : r.resolvedAmount.basis === "estimate" ? "Planning estimate" : "Monthly equivalent"}`}{" "}
-                      · {month}
-                    </p>
-                    {r.resolvedAmount.expectedCharges > 1 && (
-                      <p>
-                        {r.resolvedAmount.linkedCharges} of{" "}
-                        {r.resolvedAmount.expectedCharges} expected charges
-                        linked for {month}
-                        {r.resolvedAmount.linkedCharges >=
-                        r.resolvedAmount.expectedCharges
-                          ? r.resolvedAmount.usingChargeSnapshots
-                            ? ". Total includes saved amounts for unavailable charges."
-                            : ". Combined charge total is used."
-                          : ". Partial evidence: the full monthly amount remains planned; an unlinked charge does not end a membership."}
-                      </p>
-                    )}
-                    {r.resolvedAmount.missingActual && (
-                      <p>
-                        {r.resolvedAmount.usingChargeSnapshots
-                          ? "Some linked transactions are unavailable. Verify the retained charge amounts used in the total."
-                          : "Linked transaction is unavailable. The total uses the full saved monthly payment amount; verify the evidence."}
-                      </p>
-                    )}
-                    {Number(r.amount) === 0 && r.amountMode !== "variable" && (
-                      <p>
-                        Zero amount: verify whether this commitment is still
-                        active.
-                      </p>
-                    )}
-                    {r.frequency === "Unknown" && (
-                      <p>
-                        Uncertain frequency: verify the actual payment amount
-                        and interval together.
-                      </p>
-                    )}
-                    {!r.accountName && (
-                      <p>No payment account supplied in the worksheet.</p>
-                    )}
-                    {duplicatePlansFor(r).length > 0 && (
-                      <div>
-                        <p>
-                          Possible duplicate: another planned bill is already
-                          confirmed.
-                        </p>
-                        <ul>
-                          {duplicatePlansFor(r).map((p: any) => (
-                            <li key={p.id}>
-                              {p.name} · {p.accountName}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    {r.observedMatches?.length > 0 && (
-                      <p>
-                        Matching confirmed transaction history:{" "}
-                        {r.observedMatches.map((m: any) => m.name).join(", ")}.
-                        History estimates are shown separately from your plan.
-                      </p>
-                    )}
-                    <BillEvidence
-                      key={JSON.stringify([
-                        r.id,
-                        r.name,
-                        r.amount,
-                        r.amountMode,
-                        r.planningEstimate,
-                        r.currency,
-                        r.expenseType,
-                        month,
-                        r.payments,
-                        r.expectedChargeCount,
-                        r.resolvedAmount?.basis === "actual"
-                          ? r.resolvedAmount.amount
-                          : null,
-                      ])}
-                      row={r}
-                      month={month}
-                      api={api}
-                    />
-                    <form
-                      key={`${r.id}:${month}:${formVersions[r.id] ?? 0}`}
-                      className="plan-form"
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        void save(r, e.currentTarget, "confirmed");
-                      }}
-                    >
-                      <label>
-                        Bill name
-                        <input
-                          name="name"
-                          defaultValue={r.name}
-                          required
-                          maxLength={120}
-                        />
-                      </label>
-                      <label>
-                        Payment account
-                        <input
-                          name="accountName"
-                          defaultValue={r.accountName}
-                          maxLength={150}
-                        />
-                      </label>
-                      <label>
-                        Amount certainty
-                        <select
-                          name="amountMode"
-                          defaultValue={r.amountMode ?? "fixed"}
-                        >
-                          <option value="fixed">Fixed amount</option>
-                          <option value="variable">
-                            Variable monthly amount (may be unknown)
-                          </option>
-                        </select>
-                      </label>
-                      <label>
-                        Fixed amount (full commitment)
-                        <input
-                          name="amount"
-                          defaultValue={r.amount}
-                          inputMode="decimal"
-                          pattern="[0-9]+\.[0-9]{2}"
-                          aria-describedby={`amount-${r.id}`}
-                        />
-                      </label>
-                      <p id={`amount-${r.id}`}>
-                        Use two decimal places. For variable monthly bills, this
-                        fixed amount is ignored and may be blank. Zero means a
-                        known zero, not an unknown payment.
-                      </p>
-                      <label>
-                        Currency
-                        <input
-                          name="currency"
-                          defaultValue={r.currency}
-                          pattern="[A-Z]{3}"
-                          maxLength={3}
-                          required
-                        />
-                      </label>
-                      <label>
-                        Frequency
-                        <select name="frequency" defaultValue={r.frequency}>
-                          {[
-                            "Unknown",
-                            "Weekly",
-                            "Every two weeks",
-                            "Monthly",
-                            "Quarterly",
-                            "Every six months",
-                            "Yearly",
-                          ].map((f) => (
-                            <option key={f} value={f}>
-                              {f === "Quarterly" ? "Every 3 months" : f}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label>
-                        Planning estimate (optional, variable bills)
-                        <input
-                          name="planningEstimate"
-                          defaultValue={r.planningEstimate ?? ""}
-                          inputMode="decimal"
-                          pattern="[0-9]+\.[0-9]{2}"
-                        />
-                      </label>
-                      <BillClassificationFields
-                        kind={entryKind(r)}
-                        expenseType={r.expenseType}
-                        creditAccountId={r.creditAccountId}
-                        accounts={data.creditAccounts}
-                      />
-                      <PaymentFields row={r} month={month} data={data} />
-                      <label>
-                        Payment day (optional)
-                        <input
-                          name="day"
-                          type="number"
-                          min={1}
-                          max={31}
-                          defaultValue={r.day ?? ""}
-                        />
-                      </label>
-                      <label>
-                        Entry type
-                        <select
-                          name="kind"
-                          value={entryKind(r)}
-                          onChange={(e) =>
-                            setEntryKinds((k) => ({
-                              ...k,
-                              [entryKindKey(r)]: e.target.value,
+                {budgetPlanEntries(data.records).length > 0 && (
+                  <table className="plan-table">
+                    <caption>Commitments · {month}</caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Commitment</th>
+                        <th scope="col">Amount</th>
+                        <th scope="col">Payment account</th>
+                        <th scope="col">Frequency</th>
+                      </tr>
+                    </thead>
+                    {budgetPlanEntries(data.records).map((r: any) => (
+                      <tbody
+                        className="plan-entry"
+                        key={r.id}
+                        ref={(element) => {
+                          if (element) entries.current.set(r.id, element);
+                          else entries.current.delete(r.id);
+                        }}
+                      >
+                        <tr
+                          className="plan-table-row"
+                          onClick={() =>
+                            setExpandedEntries((previous) => ({
+                              ...previous,
+                              [r.id]: !previous[r.id],
                             }))
                           }
                         >
-                          <option value="bill">Bill commitment</option>
-                          <option value="transfer">
-                            Auto-transfer (not a bill)
-                          </option>
-                        </select>
-                      </label>
-                      <label>
-                        Notes
-                        <textarea
-                          name="notes"
-                          defaultValue={r.notes}
-                          maxLength={2000}
-                        />
-                      </label>
-                      {saveError && saveError.id === r.id && (
-                        <p
-                          role="alert"
-                          tabIndex={-1}
-                          data-save-error
-                          className="error"
+                          <th scope="row">
+                            <button
+                              type="button"
+                              className="plan-toggle"
+                              data-plan-toggle
+                              aria-expanded={!!expandedEntries[r.id]}
+                              aria-controls={`plan-details-${r.id}`}
+                            >
+                              <span aria-hidden="true" className="plan-chevron">
+                                {expandedEntries[r.id] ? "▾" : "▸"}
+                              </span>
+                              <span>
+                                {r.name}
+                                <span className="plan-row-status">
+                                  {r.status === "confirmed"
+                                    ? "Confirmed"
+                                    : "Needs review"}
+                                </span>
+                              </span>
+                            </button>
+                          </th>
+                          <td className="plan-row-amount" data-label="Amount">
+                            <strong>
+                              {r.resolvedAmount.amount === null
+                                ? "Unknown"
+                                : money(r.resolvedAmount.amount, r.currency)}
+                            </strong>
+                            <span className="plan-row-basis">
+                              {r.resolvedAmount.amount === null
+                                ? "Amount not set"
+                                : r.resolvedAmount.basis === "actual"
+                                  ? "Actual paid"
+                                  : r.resolvedAmount.basis === "known"
+                                    ? "Known payment"
+                                    : r.resolvedAmount.basis === "estimate"
+                                      ? "Planning estimate"
+                                      : "Monthly equivalent"}
+                            </span>
+                          </td>
+                          <td data-label="Payment account">
+                            {r.accountName || "Not assigned"}
+                          </td>
+                          <td data-label="Frequency">{r.frequency}</td>
+                        </tr>
+                        <tr
+                          className="plan-table-expansion"
+                          hidden={!expandedEntries[r.id]}
                         >
-                          {saveError.message}
-                        </p>
-                      )}
-                      {(duplicatePlansFor(r).length > 0 ||
-                        r.acknowledgeDuplicate ||
-                        (saveError &&
-                          saveError.id === r.id &&
-                          saveError.message
-                            .toLowerCase()
-                            .includes("duplicate"))) && (
-                        <label className="bill-payment">
-                          <input
-                            type="checkbox"
-                            name="duplicate"
-                            defaultChecked={r.acknowledgeDuplicate}
-                          />
-                          <span>
-                            I reviewed the possible duplicate and this is a
-                            separate commitment.
-                          </span>
-                        </label>
-                      )}
-                      {duplicatePlansFor(r).length > 0 && (
-                        <BillMerge
-                          row={{ ...r, duplicatePlans: duplicatePlansFor(r) }}
-                          api={api}
-                          disabled={busy}
-                          readEdits={(form) =>
-                            billPlanSubmission(
-                              r,
-                              new FormData(form),
-                              month,
-                              "review",
-                            )
-                          }
-                          onMerged={async (targetId) => {
-                            await reload();
-                            setFormVersions((v) => ({
-                              ...v,
-                              [targetId]: (v[targetId] ?? 0) + 1,
-                            }));
-                            setAdvanceFrom(r.id);
-                            setNotice(
-                              "Duplicate merged. One confirmed bill remains.",
-                            );
-                          }}
-                        />
-                      )}
-                      <div className="actions">
-                        <button disabled={busy}>
-                          {entryKind(r) === "transfer"
-                            ? "Confirm transfer"
-                            : "Confirm bill"}
-                        </button>
-                        <button
-                          type="button"
-                          className="secondary"
-                          disabled={busy}
-                          onClick={(e) =>
-                            void save(r, e.currentTarget.form!, "review")
-                          }
-                        >
-                          Save for review
-                        </button>
-                        <button
-                          type="button"
-                          className="secondary"
-                          disabled={busy}
-                          onClick={(e) =>
-                            void save(r, e.currentTarget.form!, "excluded")
-                          }
-                        >
-                          Exclude from plan
-                        </button>
-                      </div>
-                    </form>
-                  </details>
-                ))}
+                          <td colSpan={4}>
+                            <div
+                              id={`plan-details-${r.id}`}
+                              className="plan-entry-details"
+                            >
+                              <p>
+                                Source: {r.source?.cell ?? r.id} · Original
+                                value: {r.source?.value}
+                                {r.source?.formula
+                                  ? ` · Formula: =${r.source.formula}`
+                                  : ""}
+                              </p>
+                              {r.sources?.length > 1 && (
+                                <details>
+                                  <summary>
+                                    Worksheet sources ({r.sources.length})
+                                  </summary>
+                                  <ul>
+                                    {r.sources.map((source: any, i: number) => (
+                                      <li key={i}>
+                                        {source.cell} · Original value:{" "}
+                                        {source.value}
+                                        {source.formula
+                                          ? ` · Formula: =${source.formula}`
+                                          : ""}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </details>
+                              )}
+                              <p>
+                                {r.resolvedAmount.amount === null
+                                  ? "Amount unknown"
+                                  : `${money(r.resolvedAmount.amount, r.currency)} · ${r.resolvedAmount.basis === "actual" ? "Actual paid" : r.resolvedAmount.basis === "known" ? "Known payment" : r.resolvedAmount.basis === "estimate" ? "Planning estimate" : "Monthly equivalent"}`}{" "}
+                                · {month}
+                              </p>
+                              {r.resolvedAmount.expectedCharges > 1 && (
+                                <p>
+                                  {r.resolvedAmount.linkedCharges} of{" "}
+                                  {r.resolvedAmount.expectedCharges} expected
+                                  charges linked for {month}
+                                  {r.resolvedAmount.linkedCharges >=
+                                  r.resolvedAmount.expectedCharges
+                                    ? r.resolvedAmount.usingChargeSnapshots
+                                      ? ". Total includes saved amounts for unavailable charges."
+                                      : ". Combined charge total is used."
+                                    : ". Partial evidence: the full monthly amount remains planned; an unlinked charge does not end a membership."}
+                                </p>
+                              )}
+                              {r.resolvedAmount.missingActual && (
+                                <p>
+                                  {r.resolvedAmount.usingChargeSnapshots
+                                    ? "Some linked transactions are unavailable. Verify the retained charge amounts used in the total."
+                                    : "Linked transaction is unavailable. The total uses the full saved monthly payment amount; verify the evidence."}
+                                </p>
+                              )}
+                              {Number(r.amount) === 0 &&
+                                r.amountMode !== "variable" && (
+                                  <p>
+                                    Zero amount: verify whether this commitment
+                                    is still active.
+                                  </p>
+                                )}
+                              {r.frequency === "Unknown" && (
+                                <p>
+                                  Uncertain frequency: verify the actual payment
+                                  amount and interval together.
+                                </p>
+                              )}
+                              {!r.accountName && (
+                                <p>
+                                  No payment account supplied in the worksheet.
+                                </p>
+                              )}
+                              {duplicatePlansFor(r).length > 0 && (
+                                <div>
+                                  <p>
+                                    Possible duplicate: another planned bill is
+                                    already confirmed.
+                                  </p>
+                                  <ul>
+                                    {duplicatePlansFor(r).map((p: any) => (
+                                      <li key={p.id}>
+                                        {p.name} · {p.accountName}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                              {r.observedMatches?.length > 0 && (
+                                <p>
+                                  Matching confirmed transaction history:{" "}
+                                  {r.observedMatches
+                                    .map((m: any) => m.name)
+                                    .join(", ")}
+                                  . History estimates are shown separately from
+                                  your plan.
+                                </p>
+                              )}
+                              <BillEvidence
+                                key={JSON.stringify([
+                                  r.id,
+                                  r.name,
+                                  r.amount,
+                                  r.amountMode,
+                                  r.planningEstimate,
+                                  r.currency,
+                                  r.expenseType,
+                                  month,
+                                  r.payments,
+                                  r.expectedChargeCount,
+                                  r.resolvedAmount?.basis === "actual"
+                                    ? r.resolvedAmount.amount
+                                    : null,
+                                ])}
+                                row={r}
+                                month={month}
+                                api={api}
+                              />
+                              <form
+                                key={`${r.id}:${month}:${formVersions[r.id] ?? 0}`}
+                                className="plan-form"
+                                onSubmit={(e) => {
+                                  e.preventDefault();
+                                  void save(r, e.currentTarget, "confirmed");
+                                }}
+                              >
+                                <label>
+                                  Bill name
+                                  <input
+                                    name="name"
+                                    defaultValue={r.name}
+                                    required
+                                    maxLength={120}
+                                  />
+                                </label>
+                                <label>
+                                  Payment account
+                                  <input
+                                    name="accountName"
+                                    defaultValue={r.accountName}
+                                    maxLength={150}
+                                  />
+                                </label>
+                                <label>
+                                  Amount certainty
+                                  <select
+                                    name="amountMode"
+                                    defaultValue={r.amountMode ?? "fixed"}
+                                  >
+                                    <option value="fixed">Fixed amount</option>
+                                    <option value="variable">
+                                      Variable monthly amount (may be unknown)
+                                    </option>
+                                  </select>
+                                </label>
+                                <label>
+                                  Fixed amount (full commitment)
+                                  <input
+                                    name="amount"
+                                    defaultValue={r.amount}
+                                    inputMode="decimal"
+                                    pattern="[0-9]+\.[0-9]{2}"
+                                    aria-describedby={`amount-${r.id}`}
+                                  />
+                                </label>
+                                <p id={`amount-${r.id}`}>
+                                  Use two decimal places. For variable monthly
+                                  bills, this fixed amount is ignored and may be
+                                  blank. Zero means a known zero, not an unknown
+                                  payment.
+                                </p>
+                                <label>
+                                  Currency
+                                  <input
+                                    name="currency"
+                                    defaultValue={r.currency}
+                                    pattern="[A-Z]{3}"
+                                    maxLength={3}
+                                    required
+                                  />
+                                </label>
+                                <label>
+                                  Frequency
+                                  <select
+                                    name="frequency"
+                                    defaultValue={r.frequency}
+                                  >
+                                    {[
+                                      "Unknown",
+                                      "Weekly",
+                                      "Every two weeks",
+                                      "Monthly",
+                                      "Quarterly",
+                                      "Every six months",
+                                      "Yearly",
+                                    ].map((f) => (
+                                      <option key={f} value={f}>
+                                        {f === "Quarterly"
+                                          ? "Every 3 months"
+                                          : f}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </label>
+                                <label>
+                                  Planning estimate (optional, variable bills)
+                                  <input
+                                    name="planningEstimate"
+                                    defaultValue={r.planningEstimate ?? ""}
+                                    inputMode="decimal"
+                                    pattern="[0-9]+\.[0-9]{2}"
+                                  />
+                                </label>
+                                <BillClassificationFields
+                                  kind={entryKind(r)}
+                                  expenseType={r.expenseType}
+                                  creditAccountId={r.creditAccountId}
+                                  accounts={data.creditAccounts}
+                                />
+                                <PaymentFields
+                                  row={r}
+                                  month={month}
+                                  data={data}
+                                />
+                                <label>
+                                  Payment day (optional)
+                                  <input
+                                    name="day"
+                                    type="number"
+                                    min={1}
+                                    max={31}
+                                    defaultValue={r.day ?? ""}
+                                  />
+                                </label>
+                                <label>
+                                  Entry type
+                                  <select
+                                    name="kind"
+                                    value={entryKind(r)}
+                                    onChange={(e) =>
+                                      setEntryKinds((k) => ({
+                                        ...k,
+                                        [entryKindKey(r)]: e.target.value,
+                                      }))
+                                    }
+                                  >
+                                    <option value="bill">
+                                      Bill commitment
+                                    </option>
+                                    <option value="transfer">
+                                      Auto-transfer (not a bill)
+                                    </option>
+                                  </select>
+                                </label>
+                                <label>
+                                  Notes
+                                  <textarea
+                                    name="notes"
+                                    defaultValue={r.notes}
+                                    maxLength={2000}
+                                  />
+                                </label>
+                                {saveError && saveError.id === r.id && (
+                                  <p
+                                    role="alert"
+                                    tabIndex={-1}
+                                    data-save-error
+                                    className="error"
+                                  >
+                                    {saveError.message}
+                                  </p>
+                                )}
+                                {(duplicatePlansFor(r).length > 0 ||
+                                  r.acknowledgeDuplicate ||
+                                  (saveError &&
+                                    saveError.id === r.id &&
+                                    saveError.message
+                                      .toLowerCase()
+                                      .includes("duplicate"))) && (
+                                  <label className="bill-payment">
+                                    <input
+                                      type="checkbox"
+                                      name="duplicate"
+                                      defaultChecked={r.acknowledgeDuplicate}
+                                    />
+                                    <span>
+                                      I reviewed the possible duplicate and this
+                                      is a separate commitment.
+                                    </span>
+                                  </label>
+                                )}
+                                {duplicatePlansFor(r).length > 0 && (
+                                  <BillMerge
+                                    row={{
+                                      ...r,
+                                      duplicatePlans: duplicatePlansFor(r),
+                                    }}
+                                    api={api}
+                                    disabled={busy}
+                                    readEdits={(form) =>
+                                      billPlanSubmission(
+                                        r,
+                                        new FormData(form),
+                                        month,
+                                        "review",
+                                      )
+                                    }
+                                    onMerged={async (targetId) => {
+                                      await reload();
+                                      setFormVersions((v) => ({
+                                        ...v,
+                                        [targetId]: (v[targetId] ?? 0) + 1,
+                                      }));
+                                      setAdvanceFrom(r.id);
+                                      setNotice(
+                                        "Duplicate merged. One confirmed bill remains.",
+                                      );
+                                    }}
+                                  />
+                                )}
+                                <div className="actions">
+                                  <button disabled={busy}>
+                                    {entryKind(r) === "transfer"
+                                      ? "Confirm transfer"
+                                      : "Confirm bill"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="secondary"
+                                    disabled={busy}
+                                    onClick={(e) =>
+                                      void save(
+                                        r,
+                                        e.currentTarget.form!,
+                                        "review",
+                                      )
+                                    }
+                                  >
+                                    Save for review
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="secondary"
+                                    disabled={busy}
+                                    onClick={(e) =>
+                                      void save(
+                                        r,
+                                        e.currentTarget.form!,
+                                        "excluded",
+                                      )
+                                    }
+                                  >
+                                    Exclude from plan
+                                  </button>
+                                </div>
+                              </form>
+                            </div>
+                          </td>
+                        </tr>
+                      </tbody>
+                    ))}
+                  </table>
+                )}
               </>
             )}
           </div>

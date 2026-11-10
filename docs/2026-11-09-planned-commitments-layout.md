@@ -27,3 +27,28 @@ and keyboard focus has a visible solid outline. Synthetic screenshots are in
 
 VoiceOver, enlarged text/zoom, physical devices, and a dedicated light-mode
 visual pass remain unverified. No accessibility conformance claim is made.
+
+## Expandable commitment entries
+
+The individual entries now use a semantic table with Commitment, Amount,
+Payment account and Frequency columns. Status appears beneath the name. Amount
+basis stays visible, including monthly equivalents for less frequent bills and
+explicit unknown amounts. Clicking anywhere in the summary row toggles a
+full-width detail row containing the existing evidence and edit form. A native
+button exposes aria-expanded/aria-controls and supports Enter/Space. Collapsed
+forms remain mounted to retain unsaved edits but are hidden from interaction.
+Save advancement now controls the detail rows and focuses the next row button.
+
+HIG alignment, readable type and progressive disclosure guide this extension.
+The web adaptation uses table headers and native buttons; below 42rem rows
+reflow into two columns with visible field labels. The table remains present
+in the browser accessibility tree. VoiceOver verification remains outstanding.
+
+Synthetic browser verification at 1100px and 320px confirmed aligned desktop
+columns, one-line amounts and no horizontal overflow at 320px, >=44px row
+buttons, keyboard expansion/collapse, retained edits, successful save with
+updated row text, and focus/expansion advancement to an unreviewed bill.
+Desktop and expanded-phone screenshots are /tmp/budget-entry-table-desktop.png
+and /tmp/budget-entry-table-mobile.png. The same 16 budget/review tests pass;
+TypeScript and production build pass. Enlarged text, VoiceOver, physical
+devices and a dedicated light-mode pass remain unverified.
