@@ -917,6 +917,104 @@ input[type="month"] {
   overflow-wrap: anywhere;
 }
 
+.commitment-row {
+  padding-block: 1.25rem 0.5rem;
+  border-top: 1px solid var(--border);
+}
+.commitment-overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+  align-items: start;
+  gap: 1rem;
+}
+.commitment-account {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.commitment-account span {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--muted-foreground);
+  font-size: 0.9375rem;
+  font-weight: 400;
+}
+.commitment-row dl {
+  margin: 0;
+  min-width: 0;
+}
+.commitment-row dt {
+  color: var(--muted-foreground);
+  font-size: 0.9375rem;
+  line-height: 1.4;
+}
+.commitment-row dd {
+  margin: 0.375rem 0 0;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.commitment-primary {
+  text-align: right;
+}
+.commitment-primary dd {
+  font-size: 1.75rem;
+  font-weight: 650;
+  line-height: 1.2;
+  letter-spacing: -0.04em;
+}
+.commitment-secondary {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+.commitment-secondary dd {
+  font-size: 1rem;
+  font-weight: 500;
+}
+.commitment-row .commitment-warning {
+  margin: 0.75rem 0 0;
+  color: var(--foreground);
+}
+.commitment-details {
+  margin-top: 0.5rem;
+}
+.commitment-details p:last-child,
+.commitment-notes p:last-child {
+  margin-bottom: 0.5rem;
+}
+.commitment-notes {
+  border-top: 1px solid var(--border);
+  margin-bottom: 1rem;
+}
+@media (max-width: 23rem) {
+  .commitment-secondary {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.5rem;
+  }
+  .commitment-secondary > div {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0.75rem;
+    align-items: baseline;
+  }
+  .commitment-secondary dd {
+    margin-top: 0;
+    text-align: right;
+  }
+}
+@media (min-width: 54rem) {
+  .commitment-overview {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr) minmax(0, 2.6fr);
+    gap: 1.5rem;
+  }
+  .commitment-secondary {
+    grid-column: auto;
+    text-align: right;
+  }
+}
+
 [hidden] {
   display: none !important;
 }

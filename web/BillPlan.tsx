@@ -223,45 +223,65 @@ export default function BillPlan({
                 : ""}
             </p>
             {data.totals.map((t: any) => (
-              <article className="bill" key={`${t.accountName}:${t.currency}`}>
-                <h3>
-                  {t.accountName} · {t.currency}
-                </h3>
-                <p>
-                  Known amounts: {money(t.known, t.currency)} · Estimates:{" "}
-                  {money(t.estimated, t.currency)}
-                </p>
-                <p>
-                  {t.unknown} bills with unknown amounts
-                  {t.unknown > 0 ? " · funding total is incomplete" : ""}
-                </p>
-                <p>Monthly commitments: {money(t.monthly, t.currency)}</p>
-                <p>
-                  Includes {money(t.repayments, t.currency)} in credit card
-                  payments for purchases (not new expenses).
-                </p>
-                <p>
-                  Includes {money(t.debtPayoff ?? 0, t.currency)} in debt payoff
-                  commitments.
-                </p>
-                <p>
-                  Monthly set-aside for less frequent bills:{" "}
-                  {money(t.setAside, t.currency)}
-                </p>
-                <p>
-                  <strong>
-                    Funding subtotal for {month}: {money(t.total, t.currency)}
-                  </strong>
-                </p>
+              <article
+                className="commitment-row"
+                key={`${t.accountName}:${t.currency}`}
+              >
+                <div className="commitment-overview">
+                  <h3 className="commitment-account">
+                    {t.accountName}
+                    <span>{t.currency}</span>
+                  </h3>
+                  <dl className="commitment-primary">
+                    <dt>Monthly commitments</dt>
+                    <dd>{money(t.monthly, t.currency)}</dd>
+                  </dl>
+                  <dl className="commitment-secondary">
+                    <div>
+                      <dt>Funding subtotal</dt>
+                      <dd>{money(t.total, t.currency)}</dd>
+                    </div>
+                    <div>
+                      <dt>Monthly set-aside</dt>
+                      <dd>{money(t.setAside, t.currency)}</dd>
+                    </div>
+                    <div>
+                      <dt>Debt payoff</dt>
+                      <dd>{money(t.debtPayoff ?? 0, t.currency)}</dd>
+                    </div>
+                  </dl>
+                </div>
+                {t.unknown > 0 && (
+                  <p className="commitment-warning">
+                    {t.unknown} bills with unknown amounts · funding total is
+                    incomplete
+                  </p>
+                )}
+                <details className="commitment-details">
+                  <summary>Funding details for {t.accountName}</summary>
+                  <p>
+                    Known amounts: {money(t.known, t.currency)} · Estimates:{" "}
+                    {money(t.estimated, t.currency)}
+                  </p>
+                  <p>
+                    Includes {money(t.repayments, t.currency)} in credit card
+                    payments for purchases (not new expenses). Debt payoff
+                    commitments are included in the funding subtotal for {month}
+                    . Monthly set-asides are for less frequent bills.
+                  </p>
+                </details>
               </article>
             ))}
             {!data.totals.length && <p>No commitments confirmed yet.</p>}
-            <p>
-              Account labels are from the worksheet and are not linked to bank
-              accounts. Currency starts as USD; verify it during review. Weekly
-              amounts use 52/12 payments per month and biweekly amounts use
-              26/12. Set-asides do not indicate when a bill is due.
-            </p>
+            <details className="commitment-notes">
+              <summary>About these totals</summary>
+              <p>
+                Account labels are from the worksheet and are not linked to bank
+                accounts. Currency starts as USD; verify it during review.
+                Weekly amounts use 52/12 payments per month and biweekly amounts
+                use 26/12. Set-asides do not indicate when a bill is due.
+              </p>
+            </details>
             {summaryOnly ? (
               <p>
                 <a href="#budget">Review imported bills in Budget</a>
