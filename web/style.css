@@ -2044,3 +2044,93 @@ dialog {
     max-width: 100%;
   }
 }
+
+.account-settings-intro {
+  margin-bottom: 1.5rem;
+}
+.account-settings-intro h2 {
+  margin-bottom: 0.5rem;
+}
+.account-settings-intro p {
+  color: var(--muted-foreground);
+}
+.institution-settings {
+  margin-top: 2rem;
+}
+.institution-settings-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+}
+.institution-settings-heading h3 {
+  margin: 0;
+  font-size: 1.125rem;
+}
+.institution-settings-heading > span {
+  color: var(--muted-foreground);
+}
+.institution-rename {
+  margin: 0.5rem 0;
+}
+.institution-rename summary {
+  display: list-item;
+  min-height: 44px;
+  padding: 0.625rem 0;
+  cursor: pointer;
+}
+.account-settings-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.account-settings-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(12rem, auto);
+  align-items: start;
+  gap: 0.75rem 1.5rem;
+  border-top: 1px solid var(--border);
+  padding: 1rem 0;
+}
+.account-setting-identity {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.account-setting-identity > span {
+  color: var(--muted-foreground);
+}
+.account-settings-detail {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+.account-setting-inclusion {
+  min-width: 0;
+}
+.account-setting-inclusion .account-inclusion {
+  margin: 0;
+  padding: 0 0.25rem;
+}
+.account-setting-inclusion input {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
+}
+.account-setting-status {
+  display: block;
+  color: var(--muted-foreground);
+}
+.account-setting-status:empty {
+  display: none;
+}
+@media (max-width: 560px) {
+  .account-settings-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.25rem;
+  }
+}

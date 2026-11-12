@@ -1,5 +1,6 @@
 import HistoryReplacement from "./HistoryReplacement";
 import AccountRefresh from "./AccountRefresh";
+import AdminAccountSettings from "./AdminAccountSettings";
 import AccountMatches from "./AccountMatches";
 import DataIssues from "./DataIssues";
 import {
@@ -331,56 +332,29 @@ export default function Admin({
         </>
       )}
       {index && settings && (
-        <>
-          <h2>Account settings</h2>
-          <p>
-            Change account names and budgeting inclusion. View balances and
-            activity in <a href="#accounts">Accounts</a>.
-          </p>
-          {!index.accounts.length && (
-            <p>
-              No accounts yet.{" "}
-              <a href="#admin/data-access">Add a data source</a> to get started.
-            </p>
-          )}
-          {index.institutions.map((i: any) => (
-            <article key={i.id}>
-              <h2>
-                {i.provisional
-                  ? `Institution not yet identified (${i.name})`
-                  : i.name}
-              </h2>
-              {nameForm(
-                "Institution display name",
-                i.name,
-                `/institutions/${encodeURIComponent(i.id)}/name`,
-              )}
-              <ul className="institution-index">
-                {index.accounts
-                  .filter((a: any) => a.institutionId === i.id)
-                  .map((a: any) => (
-                    <li key={a.id}>
-                      <a href={`#admin/accounts/${encodeURIComponent(a.id)}`}>
-                        <strong>
-                          {a.name}
-                          {a.mask ? ` · ••${a.mask}` : ""}
-                        </strong>
-                        <span>
-                          {a.type || "Type unknown"} ·{" "}
-                          {a.included
-                            ? "Included in budgeting"
-                            : "Excluded from budgeting"}
-                          {a.stale
-                            ? " · Saved history is stale; access unavailable or account no longer shared"
-                            : ""}
-                        </span>
-                      </a>
-                    </li>
-                  ))}
-              </ul>
-            </article>
-          ))}
-        </>
+        <AdminAccountSettings
+          index={index}
+          api={api}
+          disabled={disabled}
+          renameInstitution={(institution: any) =>
+            nameForm(
+              "Institution display name",
+              institution.name,
+              `/institutions/${encodeURIComponent(institution.id)}/name`,
+            )
+          }
+          onChanged={async (accountId: string, included: boolean) => {
+            if (gate.current.active())
+              setIndex((current: any) => ({
+                ...current,
+                accounts: current.accounts.map((a: any) =>
+                  a.id === accountId ? { ...a, included } : a,
+                ),
+              }));
+            await onRefresh();
+            if (gate.current.active()) await load();
+          }}
+        />
       )}
       {detail && detail.account.id === id && !access && id && (
         <>

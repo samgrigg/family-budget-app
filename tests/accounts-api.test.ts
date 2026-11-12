@@ -179,3 +179,58 @@ it("protects match review/link/unlink endpoints and exposes source-qualified his
   ).toBe(200);
   s.db.close();
 });
+
+it("toggles budgeting inclusion without sending or overwriting the account name", async () => {
+  const s = new Store(":memory:", Buffer.alloc(32), "sandbox");
+  s.connect("source", "synthetic-secret", [
+    { account_id: "a", name: "Checking" },
+  ]);
+  const app = createApp(
+    s,
+    {
+      configured: false,
+      call: async () => {
+        throw Error("No bank call expected");
+      },
+    },
+    "http://localhost:3000",
+  );
+  const session = await request(app)
+    .get("/api/state")
+    .set("Host", "localhost:3000");
+  const id = s.repository.listAccounts()[0].id;
+  const post = (body: any) =>
+    request(app)
+      .post(`/api/accounts/${id}/preferences`)
+      .set("Host", "localhost:3000")
+      .set("Origin", "http://localhost:3000")
+      .set("Cookie", session.headers["set-cookie"])
+      .set("X-CSRF-Token", session.body.csrf)
+      .send(body);
+  s.db
+    .prepare("UPDATE app_accounts SET name=? WHERE env=? AND id=?")
+    .run("Owner's renamed account", s.env, id);
+  expect((await post({ included: false })).status).toBe(200);
+  expect(s.repository.listAccounts()[0]).toMatchObject({
+    name: "Owner's renamed account",
+    included: false,
+  });
+  expect((await post({ included: true })).status).toBe(200);
+  expect(s.repository.listAccounts()[0].included).toBe(true);
+  for (const body of [
+    { included: "yes" },
+    { name: null, included: false },
+    { name: "", included: false },
+    {},
+  ])
+    expect((await post(body)).status).toBe(400);
+  expect(
+    (
+      await request(app)
+        .post(`/api/accounts/${id}/preferences`)
+        .set("Host", "localhost:3000")
+        .send({ included: false })
+    ).status,
+  ).toBe(403);
+  s.db.close();
+});

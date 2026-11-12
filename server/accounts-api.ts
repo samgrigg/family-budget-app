@@ -138,9 +138,10 @@ export function installAccountApi(
   app.post("/api/accounts/:id/preferences", (req, res) => {
     const { name, included } = req.body ?? {};
     if (
-      typeof name !== "string" ||
-      !name.trim() ||
-      name.trim().length > 120 ||
+      (name !== undefined &&
+        (typeof name !== "string" ||
+          !name.trim() ||
+          name.trim().length > 120)) ||
       typeof included !== "boolean"
     )
       return res.status(400).json({
@@ -150,9 +151,17 @@ export function installAccountApi(
       return res.status(404).json({
         error: "Account not found. Reload accounts; it may have been linked.",
       });
-    const result = store.db
-      .prepare("UPDATE app_accounts SET name=?,included=? WHERE env=? AND id=?")
-      .run(name.trim(), Number(included), store.env, req.params.id);
+    // An inline inclusion toggle must never write back a stale display name.
+    const result =
+      name === undefined
+        ? store.db
+            .prepare("UPDATE app_accounts SET included=? WHERE env=? AND id=?")
+            .run(Number(included), store.env, req.params.id)
+        : store.db
+            .prepare(
+              "UPDATE app_accounts SET name=?,included=? WHERE env=? AND id=?",
+            )
+            .run(name.trim(), Number(included), store.env, req.params.id);
     if (!result.changes)
       return res.status(404).json({ error: "Account not found." });
     res.json({ ok: true });
