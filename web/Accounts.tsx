@@ -8,7 +8,7 @@ import {
 import AccountBalance from "./AccountBalance";
 import DataIssues from "./DataIssues";
 import AccountRefresh from "./AccountRefresh";
-import { accountGroups } from "./accountGroups";
+import OrderedAccountGroups from "./OrderedAccountGroups";
 export default function Accounts({
   api,
   route,
@@ -95,53 +95,7 @@ export default function Accounts({
               </a>
             </p>
           )}
-          {accountGroups(index.accounts).map((group) => (
-            <section
-              className="account-group"
-              key={group.id}
-              aria-labelledby={`group-${group.id}`}
-            >
-              <div className="account-group-heading">
-                <h2 id={`group-${group.id}`}>{group.name}</h2>
-                <span>
-                  {group.accounts.length}{" "}
-                  {group.accounts.length === 1 ? "account" : "accounts"}
-                </span>
-              </div>
-              <p>{group.description}</p>
-              <ul className="accounts-balance-list">
-                {group.accounts.map((a: any) => (
-                  <li key={a.id}>
-                    <div className="account-identity">
-                      <a
-                        className="account-history-link"
-                        href={`#accounts/${encodeURIComponent(a.id)}`}
-                      >
-                        <strong>
-                          {a.name}
-                          {a.mask ? ` · ••${a.mask}` : ""}
-                        </strong>
-                        <span>View transactions →</span>
-                      </a>
-                      <span>
-                        {index.institutions.find(
-                          (i: any) => i.id === a.institutionId,
-                        )?.name || "Institution not identified"}{" "}
-                        · {a.subtype || a.type || "Type unknown"}
-                      </span>
-                      {a.stale && (
-                        <span>
-                          Connection needs attention ·{" "}
-                          <a href="#admin">Manage connection</a>
-                        </span>
-                      )}
-                    </div>
-                    <AccountBalance account={a} compact />
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ))}
+          <OrderedAccountGroups key={index.environment} index={index} />
         </>
       )}
       {detail && account && (

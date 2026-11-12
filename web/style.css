@@ -1912,3 +1912,59 @@ dialog {
     text-align: left;
   }
 }
+
+.account-order-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+.account-order-status:empty {
+  margin: 0;
+}
+.account-order-controls {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.account-order-controls button {
+  min-height: 44px;
+}
+.account-order-controls button[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: default;
+}
+.account-drag-handle {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  font-size: 1.5rem;
+}
+.account-drag-handle:active {
+  cursor: grabbing;
+}
+.accounts-balance-list > .order-drop-before {
+  border-top: 3px solid var(--foreground);
+}
+.accounts-balance-list > .order-drop-after {
+  border-bottom: 3px solid var(--foreground);
+}
+.order-drop-label {
+  flex-basis: 100%;
+  font-weight: 600;
+}
+.account-order-toolbar button,
+.account-order-controls button {
+  width: auto;
+}
+.account-drag-handle {
+  touch-action: none;
+  user-select: none;
+}
