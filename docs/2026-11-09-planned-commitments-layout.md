@@ -52,3 +52,15 @@ Desktop and expanded-phone screenshots are /tmp/budget-entry-table-desktop.png
 and /tmp/budget-entry-table-mobile.png. The same 16 budget/review tests pass;
 TypeScript and production build pass. Enlarged text, VoiceOver, physical
 devices and a dedicated light-mode pass remain unverified.
+
+## Column sorting and day of month
+
+Owner request: “Great stuff! Now in the Budget tab, the Commitments rows, how hard would it be to make those sortable? And add the day of month as a column”. Clarification: “Column sorting”.
+
+Commitment, Amount, Payment account, Day of month and Frequency headers now toggle ascending/descending order. Existing source order is retained until the first sort. The new column reads the existing optional payment-day field; missing values show Not set. Day and amount sorts are numeric. Amount uses the displayed resolved payment/monthly equivalent, with separate currency groups rather than implicit currency conversion. Names use case-insensitive natural ordering, account names alphabetical ordering and frequencies shortest-to-longest cadence. Unset values remain last in both directions; ties retain source order. No data or scheduling fields are modified by sorting.
+
+Sort direction is shown with arrows, aria-sort and a status message. On phones the headers remain visible as wrapping sort controls; row cells retain labels. Expanded forms are keyed to commitment IDs, remain mounted during sorting, and span all five columns. Review advancement uses the selected sort order, including excluded records solely to preserve advancement position.
+
+Current HIG layout guidance on alignment, hierarchy and adaptability informed the change. Native header buttons and responsive wrapped headers are deliberate web adaptations. VoiceOver and actual text enlargement remain unverified; no accessibility-conformance claim.
+
+Verification: 237 tests across 44 files passed, including six new sorting tests for numeric values, null-last ordering, stable ties, immutable inputs, record identity, cadence/text sorting and currency separation. TypeScript and production build passed. Read-only code review found no blocking issues. Synthetic browser tests verified day order 2/10/20/unset and its reversal, amount order 50/65/1200/unknown, keyboard sorting, retained unsaved edits in an expanded row, and save advancement to the next unreviewed item in sorted order. At 320px all sort buttons measured at least 44px high and the document had no horizontal overflow. No real budget data was changed during verification.

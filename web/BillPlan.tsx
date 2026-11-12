@@ -1,4 +1,9 @@
 import BillEvidence from "./BillEvidence";
+import {
+  commitmentColumns,
+  sortCommitments,
+  type CommitmentSort,
+} from "./commitmentSort";
 import BillMerge from "./BillMerge";
 import { billPlanSubmission } from "./billPlanSubmission";
 import BillClassificationFields from "./BillClassificationFields";
@@ -46,6 +51,7 @@ export default function BillPlan({
     Record<string, boolean>
   >({});
   const [advanceFrom, setAdvanceFrom] = useState<string | null>(null);
+  const [sort, setSort] = useState<CommitmentSort | null>(null);
   useEffect(() => {
     if (saveError && (!activeTab || activeTab === "commitments"))
       entries.current
@@ -57,7 +63,10 @@ export default function BillPlan({
     if (!advanceFrom || !data || (activeTab && activeTab !== "commitments"))
       return;
     const current = entries.current.get(advanceFrom);
-    const nextId = nextBillToReview(data.records, advanceFrom);
+    const nextId = nextBillToReview(
+      sortCommitments<any>(data.records, sort),
+      advanceFrom,
+    );
     const next = nextId ? entries.current.get(nextId) : undefined;
     setExpandedEntries((previous) => ({
       ...previous,
@@ -74,7 +83,7 @@ export default function BillPlan({
       inline: "nearest",
     });
     setAdvanceFrom(null);
-  }, [advanceFrom, data, activeTab]);
+  }, [advanceFrom, data, activeTab, sort]);
   const reload = async () => {
     const fresh = await api(endpoint);
     setData(fresh);
@@ -132,6 +141,12 @@ export default function BillPlan({
     saveError && saveError.id === row.id && saveError.duplicatePlans
       ? saveError.duplicatePlans
       : (row.duplicatePlans ?? []);
+  const visibleEntries = budgetPlanEntries(
+    sortCommitments<any>(data?.records ?? [], sort),
+  );
+  const sortColumn = commitmentColumns.find(
+    (column) => column.key === sort?.key,
+  );
   const remaining =
     data?.records.filter((r: any) => r.status === "review").length ?? 0;
   return (
@@ -302,18 +317,56 @@ export default function BillPlan({
                     described in the README.
                   </p>
                 )}
-                {budgetPlanEntries(data.records).length > 0 && (
+                {visibleEntries.length > 0 && (
+                  <p className="plan-sort-status" role="status">
+                    {sort
+                      ? `Sorted by ${sortColumn?.label}, ${sort.direction}. Unset values appear last.`
+                      : "Select a column heading to sort."}
+                  </p>
+                )}
+                {visibleEntries.length > 0 && (
                   <table className="plan-table">
                     <caption>Commitments · {month}</caption>
                     <thead>
                       <tr>
-                        <th scope="col">Commitment</th>
-                        <th scope="col">Amount</th>
-                        <th scope="col">Payment account</th>
-                        <th scope="col">Frequency</th>
+                        {commitmentColumns.map((column) => {
+                          const active = sort?.key === column.key;
+                          const nextDirection =
+                            active && sort?.direction === "ascending"
+                              ? "descending"
+                              : "ascending";
+                          return (
+                            <th
+                              key={column.key}
+                              scope="col"
+                              aria-sort={active ? sort.direction : "none"}
+                            >
+                              <button
+                                type="button"
+                                className="plan-sort"
+                                aria-label={`Sort by ${column.label}, ${nextDirection}`}
+                                onClick={() =>
+                                  setSort({
+                                    key: column.key,
+                                    direction: nextDirection,
+                                  })
+                                }
+                              >
+                                {column.label}{" "}
+                                <span aria-hidden="true">
+                                  {active
+                                    ? sort.direction === "ascending"
+                                      ? "↑"
+                                      : "↓"
+                                    : "↕"}
+                                </span>
+                              </button>
+                            </th>
+                          );
+                        })}
                       </tr>
                     </thead>
-                    {budgetPlanEntries(data.records).map((r: any) => (
+                    {visibleEntries.map((r: any) => (
                       <tbody
                         className="plan-entry"
                         key={r.id}
@@ -373,13 +426,16 @@ export default function BillPlan({
                           <td data-label="Payment account">
                             {r.accountName || "Not assigned"}
                           </td>
+                          <td data-label="Day of month">
+                            {r.day ?? "Not set"}
+                          </td>
                           <td data-label="Frequency">{r.frequency}</td>
                         </tr>
                         <tr
                           className="plan-table-expansion"
                           hidden={!expandedEntries[r.id]}
                         >
-                          <td colSpan={4}>
+                          <td colSpan={5}>
                             <div
                               id={`plan-details-${r.id}`}
                               className="plan-entry-details"

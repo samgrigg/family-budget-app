@@ -2134,3 +2134,62 @@ dialog {
     gap: 0.25rem;
   }
 }
+
+.plan-sort-status {
+  color: var(--muted-foreground);
+}
+.plan-table button.plan-sort {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 44px;
+  border: 0;
+  border-radius: 0.25rem;
+  padding: 0.25rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  white-space: normal;
+}
+.plan-table th[aria-sort="ascending"],
+.plan-table th[aria-sort="descending"] {
+  color: var(--foreground);
+  font-weight: 600;
+}
+.plan-table button.plan-sort:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+@media (max-width: 42rem) {
+  .plan-table thead {
+    display: block;
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
+    margin-bottom: 0.75rem;
+  }
+  .plan-table thead tr {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+  .plan-table thead th,
+  .plan-table thead th:first-child {
+    display: block;
+    width: auto;
+    padding: 0;
+  }
+  .plan-table button.plan-sort {
+    width: auto;
+    padding: 0.5rem;
+    border: 1px solid var(--border);
+  }
+  .plan-table .plan-table-row > td:last-child {
+    grid-column: 1 / -1;
+  }
+}
