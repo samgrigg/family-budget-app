@@ -159,3 +159,20 @@ Sandbox Link/exchange/product run was not performed. All reported applicable
 local checks passed; this is not a claim of end-to-end Plaid acceptance.
 Final local verification: 221 tests across 40 files, TypeScript, production
 build, and synthetic browser navigation at 320/390 CSS pixels passed.
+
+## Accounts follow-up: refresh discovery and sign presentation
+
+Owner reported unclear Accounts hierarchy, hidden refresh controls and inverted
+transaction signs. The UI now exposes the existing protected per-source sync
+operation from Accounts and Admin, with partial-failure feedback and navigation
+cancellation. No Plaid endpoint, product, consent or credential behavior changed.
+Cached balances remain cached (BAL-001); no paid live balance endpoint or
+`balance` Link product was added (BAL-002/008). Transaction signs are reversed
+only when displayed; storage, reconciliation and projections are unchanged.
+
+Observed synthetic browser journey: refresh changed checking 4280.45 → 4380.45;
+transaction history rendered payroll +2500.50 and purchase −42.50. API coverage
+verifies the protected action persists balances, does not call the live balance
+endpoint, and retains stale saved balances after an authorization error. Live
+Sandbox Link/exchange remains unverified (CHECK-008); no end-to-end Plaid
+acceptance is claimed. Existing public-webhook/OAuth tasks remain unchanged.

@@ -11,7 +11,13 @@ function amount(value: string, currency: string) {
   }
   return `${currency || "Currency unknown"} ${Number(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
-export default function AccountBalance({ account }: { account: any }) {
+export default function AccountBalance({
+  account,
+  compact = false,
+}: {
+  account: any;
+  compact?: boolean;
+}) {
   const b = account.balance;
   const debt = account.type === "credit" || account.type === "loan";
   const availableLabel =
@@ -24,9 +30,11 @@ export default function AccountBalance({ account }: { account: any }) {
           : null;
   return (
     <div className="account-balance">
-      <span className="balance-label">
-        {debt ? "Amount owed" : "Current balance"}
-      </span>
+      {!compact && (
+        <span className="balance-label">
+          {debt ? "Amount owed" : "Current balance"}
+        </span>
+      )}
       <strong className="balance-value">
         {b?.current != null
           ? amount(b.current, b.currency)
@@ -42,13 +50,17 @@ export default function AccountBalance({ account }: { account: any }) {
       )}
       {b?.retrievedAt && (
         <span>
-          Retrieved{" "}
+          {compact ? "Checked" : "Retrieved"}{" "}
           <time dateTime={b.retrievedAt}>
-            {new Date(b.retrievedAt).toLocaleString()}
+            {compact
+              ? new Date(b.retrievedAt).toLocaleDateString()
+              : new Date(b.retrievedAt).toLocaleString()}
           </time>
         </span>
       )}
-      {!b && <span>Sync in Admin to retrieve a balance.</span>}
+      {!b && (
+        <span>Use Refresh balances & transactions to retrieve a balance.</span>
+      )}
     </div>
   );
 }

@@ -377,3 +377,38 @@ it("requests only additional card consent in update mode while preserving repair
   expect(body.update).toBeUndefined();
   f.store.db.close();
 });
+
+it("refreshes cached balances through the existing protected sync action", async () => {
+  const f = await fixture();
+  f.available([
+    {
+      account_id: "a",
+      name: "Checking",
+      type: "depository",
+      balances: { current: 2500.5, available: 2400, iso_currency_code: "USD" },
+    },
+  ]);
+  const before = (await f.get("/api/accounts")).body.accounts.find(
+    (a: any) => a.name === "Checking",
+  );
+  expect(before.balance).toBeNull();
+  expect((await f.post("/api/data-sources/source/sync")).status).toBe(200);
+  const after = (await f.get("/api/accounts")).body.accounts.find(
+    (a: any) => a.id === before.id,
+  );
+  expect(after.balance).toMatchObject({
+    current: "2500.5",
+    available: "2400",
+    currency: "USD",
+  });
+  expect(f.calls.filter((c) => c.path === "/accounts/get")).toHaveLength(1);
+  expect(f.calls.some((c) => c.path === "/accounts/balance/get")).toBe(false);
+  f.fail("ITEM_LOGIN_REQUIRED");
+  expect((await f.post("/api/data-sources/source/sync")).status).not.toBe(200);
+  expect(
+    (await f.get("/api/accounts")).body.accounts.find(
+      (a: any) => a.id === before.id,
+    ).balance,
+  ).toMatchObject({ current: "2500.5", stale: true });
+  f.store.db.close();
+});

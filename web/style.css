@@ -1781,15 +1781,6 @@ dialog {
   color: var(--foreground);
   font-weight: 600;
 }
-.account-institution {
-  margin-top: 2rem;
-}
-.balance-index a {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  align-items: start;
-  gap: 1rem;
-  padding: 1.25rem 0.5rem;
-}
 .account-identity,
 .account-balance {
   display: flex;
@@ -1825,11 +1816,99 @@ dialog {
 .account-balance-detail .balance-value {
   font-size: 2rem;
 }
-@media (max-width: 380px) {
-  .balance-index a {
+
+.accounts-toolbar {
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+.accounts-toolbar > p,
+.account-group > p {
+  color: var(--muted-foreground);
+  margin-top: 0.5rem;
+}
+.account-refresh {
+  margin: 0.75rem 0;
+}
+.account-refresh > button {
+  min-height: 44px;
+  white-space: normal;
+}
+.account-group {
+  margin-top: 2rem;
+}
+.account-group-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+.account-group-heading h2 {
+  margin: 0;
+}
+.account-group-heading > span {
+  color: var(--muted-foreground);
+}
+.accounts-balance-list {
+  list-style: none;
+  padding: 0;
+}
+.accounts-balance-list > li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1rem;
+  padding: 1.25rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.account-history-link {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  min-height: 44px;
+  gap: 0.375rem;
+  color: var(--foreground);
+  text-decoration: none;
+}
+.account-history-link > span {
+  font-size: 0.9375rem;
+  color: var(--muted-foreground);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+.admin-section-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+.admin-section-nav a {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  text-decoration: none;
+}
+.admin-section-nav a[aria-current="page"] {
+  background: var(--muted);
+  color: var(--foreground);
+  font-weight: 600;
+}
+.connection-advanced {
+  margin-top: 1.5rem;
+}
+.connection-advanced summary {
+  min-height: 44px;
+  cursor: pointer;
+  padding: 0.75rem 0;
+}
+@media (max-width: 440px) {
+  .accounts-balance-list > li {
     grid-template-columns: minmax(0, 1fr);
   }
-  .balance-index .account-balance {
+  .accounts-balance-list .account-balance {
     text-align: left;
   }
 }

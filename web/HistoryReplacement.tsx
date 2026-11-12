@@ -137,7 +137,7 @@ export default function HistoryReplacement({
         <div role="alert" className="error">
           <p>{error}</p>
           <button onClick={() => void load()}>Reload replacement status</button>
-          <a className="shared-account-link" href="#admin">
+          <a className="shared-account-link" href="#admin/matches">
             Review or unlink existing account links
           </a>
         </div>
@@ -198,7 +198,7 @@ export default function HistoryReplacement({
             <p>
               Confirmed account links and classification choices are saved.
               Cancelling keeps those choices.{" "}
-              <a className="shared-account-link" href="#admin">
+              <a className="shared-account-link" href="#admin/matches">
                 Review links and unlink to reverse a confirmed match
               </a>
             </p>

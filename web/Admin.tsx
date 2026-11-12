@@ -1,4 +1,5 @@
 import HistoryReplacement from "./HistoryReplacement";
+import AccountRefresh from "./AccountRefresh";
 import AccountMatches from "./AccountMatches";
 import DataIssues from "./DataIssues";
 import {
@@ -25,15 +26,16 @@ export default function Admin({
     [detail, setDetail] = useState<any>(null),
     [error, setError] = useState(""),
     [working, setWorking] = useState(false);
-  const adminRoute = route.replace(/^#admin(?:\/accounts)?/, "#accounts");
   const access =
+    route === "#admin" ||
     route === "#admin/data-access" ||
     route.startsWith("#data-access") ||
-    route.startsWith("#institutions/");
-  const id =
-    adminRoute.startsWith("#accounts/") && !access
-      ? decodeURIComponent(adminRoute.slice(10))
-      : "";
+    route.startsWith("#institutions");
+  const settings = route === "#admin/accounts";
+  const matches = route === "#admin/matches";
+  const id = route.startsWith("#admin/accounts/")
+    ? decodeURIComponent(route.slice("#admin/accounts/".length))
+    : "";
   const gate = useRef(createRequestGate());
   async function load() {
     if (!gate.current.active()) return;
@@ -100,12 +102,22 @@ export default function Admin({
   return (
     <section className="panel">
       <h1 tabIndex={-1} id="main-content">
-        {access ? "Data access" : id ? "Account settings" : "Admin"}
+        {id ? "Account settings" : "Admin"}
       </h1>
-      <p>
-        <a href="#admin">Account settings</a> ·{" "}
-        <a href="#admin/data-access">Manage data access</a>
-      </p>
+      <nav className="admin-section-nav" aria-label="Administration">
+        <a href="#admin" aria-current={access ? "page" : undefined}>
+          Connections & refresh
+        </a>
+        <a
+          href="#admin/accounts"
+          aria-current={settings || id ? "page" : undefined}
+        >
+          Account settings
+        </a>
+        <a href="#admin/matches" aria-current={matches ? "page" : undefined}>
+          Account matching
+        </a>
+      </nav>
       {route.startsWith("#institutions") && (
         <p className="notice">
           Accounts are now grouped by institution. Connections are managed
@@ -121,21 +133,40 @@ export default function Admin({
       )}
       {!index && !error && <p role="status">Loading accounts…</p>}
       <DataIssues issues={detail?.dataIssues ?? index?.dataIssues} />
-      {index && !access && !id && (
+      {index && matches && (
         <AccountMatches api={api} onRefresh={onRefresh} revision={revision} />
       )}
-      {working && <p role="status">Saving…</p>}
+      {working && <p role="status">Updating…</p>}
       {index && access && (
         <>
+          <h2>Connections</h2>
           <p>
-            Data sources import account history through Plaid. Repair
-            authorization renews access; Review shared accounts opens your
-            institution’s sharing choices. Disconnecting stops imports and keeps
-            saved history. Budgeting inclusion is set on each account; chart
-            visibility is separate.
+            Pull the latest available balances and transactions from your
+            connected institutions.
+          </p>
+          <AccountRefresh
+            label="Refresh all balances & transactions"
+            api={api}
+            sources={index.sources.map((s: any) => ({
+              ...s,
+              displayName: index.institutions.find(
+                (i: any) => i.id === s.institution_id,
+              )?.name,
+            }))}
+            configured={configured}
+            disabled={disabled}
+            onBusyChange={setWorking}
+            onComplete={async () => {
+              await onRefresh();
+              await load();
+            }}
+          />
+          <p>
+            Institutions may return cached balances. Connection settings and
+            authorization are below.
           </p>
           <button disabled={disabled || !configured} onClick={addSource}>
-            Add data source
+            Add bank connection
           </button>
           {!configured && (
             <p>
@@ -143,22 +174,13 @@ export default function Admin({
               instructions.
             </p>
           )}
-          <HistoryReplacement
-            api={api}
-            sources={index.sources}
-            institutions={index.institutions}
-            revision={revision}
-            onRefresh={onRefresh}
-            openLink={replaceSource}
-            disabled={disabled || !configured}
-          />
           {index.sources.map((s: any) => (
             <article className="connection" key={s.id}>
               <h2>
                 {index.institutions.find((i: any) => i.id === s.institution_id)
                   ?.name || "Institution not yet identified"}
               </h2>
-              <p>{s.label || "Data source"}</p>
+              <p>{s.label || "Bank connection"}</p>
               <p>
                 {s.provider} ·{" "}
                 {s.status === "historical"
@@ -167,130 +189,154 @@ export default function Admin({
                     ? "Needs authorization"
                     : s.status === "revoke_required"
                       ? "Revocation needs retry"
-                      : s.status}
+                      : s.status === "ready"
+                        ? "Connected"
+                        : s.status === "history_pending"
+                          ? "Importing history"
+                          : s.status === "waiting"
+                            ? "Import pending"
+                            : "Connection status unknown"}
               </p>
-              <p>
-                Requested history:{" "}
-                {s.requested_days == null
-                  ? "Unknown"
-                  : `${s.requested_days} days`}{" "}
-                · Last successful check: {s.last_checked || "Unknown"}
-              </p>
-              {!s.recoveryOnly &&
-                nameForm(
-                  "Source nickname",
-                  s.label || "",
-                  `/data-sources/${encodeURIComponent(s.id)}/name`,
-                )}
-              <ul className="shared-account-list">
-                {s.accounts?.map((a: any) => (
-                  <li key={a.id}>
-                    <a
-                      className="shared-account-link"
-                      href={`#admin/accounts/${encodeURIComponent(a.id)}`}
-                      aria-label={`View ${a.name} account history`}
-                    >
-                      {a.name}
-                    </a>
-                    {a.shared === false
-                      ? " · No longer shared; saved history is stale"
-                      : a.shared === true
-                        ? " · Shared"
-                        : " · Sharing not yet checked"}
-                  </li>
-                ))}
-              </ul>
-              <div className="actions">
-                <button
-                  disabled={
-                    disabled ||
-                    ["historical", "revoke_required"].includes(s.status)
-                  }
-                  onClick={() =>
-                    void run(() =>
-                      api(`/data-sources/${encodeURIComponent(s.id)}/sync`, {}),
-                    )
-                  }
-                >
-                  Sync
-                </button>
-                {!s.missingAccessCredential &&
-                  !["historical", "revoke_required"].includes(s.status) && (
-                    <>
-                      <button
-                        disabled={disabled || !configured}
-                        onClick={() => updateSource(s.id, "repair")}
-                      >
-                        Repair authorization
-                      </button>
-                      <button
-                        disabled={disabled || !configured}
-                        onClick={() => updateSource(s.id, "select_accounts")}
-                      >
-                        Review shared accounts
-                      </button>
-                      <p>
-                        Update access for this source. Saved history stays
-                        available for accounts no longer shared. This does not
-                        request older history.
-                      </p>
-                    </>
+              <AccountRefresh
+                api={api}
+                sources={[s]}
+                configured={configured}
+                disabled={disabled}
+                onBusyChange={setWorking}
+                onComplete={async () => {
+                  await onRefresh();
+                  await load();
+                }}
+              />
+              <details className="connection-advanced">
+                <summary>Connection settings & authorization</summary>
+                <p>
+                  Requested history:{" "}
+                  {s.requested_days == null
+                    ? "Unknown"
+                    : `${s.requested_days} days`}{" "}
+                  · Last successful check: {s.last_checked || "Unknown"}
+                </p>
+                {!s.recoveryOnly &&
+                  nameForm(
+                    "Connection nickname",
+                    s.label || "",
+                    `/data-sources/${encodeURIComponent(s.id)}/name`,
                   )}
-                {s.status !== "historical" &&
-                  (s.missingAccessCredential ? (
-                    <>
-                      <p>
-                        Access cannot be revoked here without a saved
-                        credential. First revoke this source’s access at the
-                        institution or Plaid Portal.
-                      </p>
+                <ul className="shared-account-list">
+                  {s.accounts?.map((a: any) => (
+                    <li key={a.id}>
+                      <a
+                        className="shared-account-link"
+                        href={`#admin/accounts/${encodeURIComponent(a.id)}`}
+                        aria-label={`View ${a.name} account history`}
+                      >
+                        {a.name}
+                      </a>
+                      {a.shared === false
+                        ? " · No longer shared; saved history is stale"
+                        : a.shared === true
+                          ? " · Shared"
+                          : " · Sharing not yet checked"}
+                    </li>
+                  ))}
+                </ul>
+                <div className="actions">
+                  {!s.missingAccessCredential &&
+                    !["historical", "revoke_required"].includes(s.status) && (
+                      <>
+                        <button
+                          disabled={disabled || !configured}
+                          onClick={() => updateSource(s.id, "repair")}
+                        >
+                          Repair authorization
+                        </button>
+                        <button
+                          disabled={disabled || !configured}
+                          onClick={() => updateSource(s.id, "select_accounts")}
+                        >
+                          Review shared accounts
+                        </button>
+                        <p>
+                          Update access for this source. Saved history stays
+                          available for accounts no longer shared. This does not
+                          request older history.
+                        </p>
+                      </>
+                    )}
+                  {s.status !== "historical" &&
+                    (s.missingAccessCredential ? (
+                      <>
+                        <p>
+                          Access cannot be revoked here without a saved
+                          credential. First revoke this source’s access at the
+                          institution or Plaid Portal.
+                        </p>
+                        <button
+                          disabled={disabled}
+                          onClick={() => {
+                            if (
+                              confirm(
+                                "Have you revoked this source’s access at your institution or Plaid Portal? This records your confirmation; the app cannot verify external revocation. Saved history stays available.",
+                              )
+                            )
+                              void run(() =>
+                                api(
+                                  `/data-sources/${encodeURIComponent(s.id)}/resolve-missing-access`,
+                                  { confirmAccessRevoked: true },
+                                ),
+                              );
+                          }}
+                        >
+                          Confirm access revoked externally
+                        </button>
+                      </>
+                    ) : (
                       <button
+                        className="danger secondary"
                         disabled={disabled}
                         onClick={() => {
                           if (
                             confirm(
-                              "Have you revoked this source’s access at your institution or Plaid Portal? This records your confirmation; the app cannot verify external revocation. Saved history stays available.",
+                              "Disconnect this data source? Saved accounts and transaction history remain available. New imports stop.",
                             )
                           )
                             void run(() =>
                               api(
-                                `/data-sources/${encodeURIComponent(s.id)}/resolve-missing-access`,
-                                { confirmAccessRevoked: true },
+                                `/data-sources/${encodeURIComponent(s.id)}/disconnect`,
+                                {},
                               ),
                             );
                         }}
                       >
-                        Confirm access revoked externally
+                        Disconnect
                       </button>
-                    </>
-                  ) : (
-                    <button
-                      className="danger secondary"
-                      disabled={disabled}
-                      onClick={() => {
-                        if (
-                          confirm(
-                            "Disconnect this data source? Saved accounts and transaction history remain available. New imports stop.",
-                          )
-                        )
-                          void run(() =>
-                            api(
-                              `/data-sources/${encodeURIComponent(s.id)}/disconnect`,
-                              {},
-                            ),
-                          );
-                      }}
-                    >
-                      Disconnect
-                    </button>
-                  ))}
-              </div>
+                    ))}
+                </div>
+              </details>
             </article>
           ))}
+          <details className="connection-advanced">
+            <summary>Request longer history</summary>
+            <HistoryReplacement
+              api={api}
+              sources={index.sources}
+              institutions={index.institutions}
+              revision={revision}
+              onRefresh={onRefresh}
+              openLink={replaceSource}
+              disabled={disabled || !configured}
+            />
+          </details>
         </>
       )}
-      {index && !access && !id && (
+      {index && settings && (
         <>
+          <h2>Account settings</h2>
+          <p>
+            Change account names and budgeting inclusion. View balances and
+            activity in <a href="#accounts">Accounts</a>.
+          </p>
           {!index.accounts.length && (
             <p>
               No accounts yet.{" "}

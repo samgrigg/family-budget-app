@@ -7,13 +7,22 @@ import {
 } from "./accountRequests";
 import AccountBalance from "./AccountBalance";
 import DataIssues from "./DataIssues";
-export default function Accounts({ api, route, revision }: any) {
+import AccountRefresh from "./AccountRefresh";
+import { accountGroups } from "./accountGroups";
+export default function Accounts({
+  api,
+  route,
+  revision,
+  busy,
+  configured,
+}: any) {
   const id = route.startsWith("#accounts/")
     ? decodeURIComponent(route.slice(10))
     : "";
   const [view, setView] = useState<any>(null);
   const [error, setError] = useState("");
   const [loadingMore, setLoadingMore] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const gate = useRef(createRequestGate());
   const load = () => {
     setError("");
@@ -34,9 +43,36 @@ export default function Accounts({ api, route, revision }: any) {
         {id ? account?.name || "Account details" : "Accounts"}
       </h1>
       <p className="page-intro">
-        Saved balances from your institutions. These are cached values, not live
-        balances.
+        {id
+          ? "Balance and transaction history for this account."
+          : "Your cash, credit cards and loans at a glance."}
       </p>
+      {index && (
+        <div className="accounts-toolbar">
+          <AccountRefresh
+            api={api}
+            sources={index.sources
+              .filter(
+                (s: any) =>
+                  !id || detail?.sources.some((d: any) => d.id === s.id),
+              )
+              .map((s: any) => ({
+                ...s,
+                displayName: index.institutions.find(
+                  (i: any) => i.id === s.institution_id,
+                )?.name,
+              }))}
+            disabled={busy || refreshing}
+            configured={configured}
+            onComplete={load}
+            onBusyChange={setRefreshing}
+          />
+          <p>
+            Refresh checks your connections for balances and transactions.
+            Institutions may still return cached balances.
+          </p>
+        </div>
+      )}
       {id && (
         <a className="back-link" href="#accounts">
           All accounts
@@ -59,47 +95,53 @@ export default function Accounts({ api, route, revision }: any) {
               </a>
             </p>
           )}
-          {index.institutions.map((institution: any) => {
-            const accounts = index.accounts.filter(
-              (a: any) => a.institutionId === institution.id,
-            );
-            if (!accounts.length) return null;
-            return (
-              <section
-                className="account-institution"
-                key={institution.id}
-                aria-labelledby={`institution-${institution.id}`}
-              >
-                <h2 id={`institution-${institution.id}`}>
-                  {institution.provisional
-                    ? `Institution not yet identified (${institution.name})`
-                    : institution.name}
-                </h2>
-                <ul className="institution-index balance-index">
-                  {accounts.map((a: any) => (
-                    <li key={a.id}>
-                      <a href={`#accounts/${encodeURIComponent(a.id)}`}>
-                        <div className="account-identity">
-                          <strong>
-                            {a.name}
-                            {a.mask ? ` · ••${a.mask}` : ""}
-                          </strong>
-                          <span>{a.subtype || a.type || "Type unknown"}</span>
-                          {!a.included && <span>Excluded from budgeting</span>}
-                          {a.stale && (
-                            <span>
-                              Access unavailable or account no longer shared
-                            </span>
-                          )}
-                        </div>
-                        <AccountBalance account={a} />
+          {accountGroups(index.accounts).map((group) => (
+            <section
+              className="account-group"
+              key={group.id}
+              aria-labelledby={`group-${group.id}`}
+            >
+              <div className="account-group-heading">
+                <h2 id={`group-${group.id}`}>{group.name}</h2>
+                <span>
+                  {group.accounts.length}{" "}
+                  {group.accounts.length === 1 ? "account" : "accounts"}
+                </span>
+              </div>
+              <p>{group.description}</p>
+              <ul className="accounts-balance-list">
+                {group.accounts.map((a: any) => (
+                  <li key={a.id}>
+                    <div className="account-identity">
+                      <a
+                        className="account-history-link"
+                        href={`#accounts/${encodeURIComponent(a.id)}`}
+                      >
+                        <strong>
+                          {a.name}
+                          {a.mask ? ` · ••${a.mask}` : ""}
+                        </strong>
+                        <span>View transactions →</span>
                       </a>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            );
-          })}
+                      <span>
+                        {index.institutions.find(
+                          (i: any) => i.id === a.institutionId,
+                        )?.name || "Institution not identified"}{" "}
+                        · {a.subtype || a.type || "Type unknown"}
+                      </span>
+                      {a.stale && (
+                        <span>
+                          Connection needs attention ·{" "}
+                          <a href="#admin">Manage connection</a>
+                        </span>
+                      )}
+                    </div>
+                    <AccountBalance account={a} compact />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
         </>
       )}
       {detail && account && (
@@ -112,10 +154,16 @@ export default function Accounts({ api, route, revision }: any) {
             <AccountBalance account={account} />
           </div>
           <DataIssues issues={detail.dataIssues} />
+          <a
+            className="back-link"
+            href={`#admin/accounts/${encodeURIComponent(id)}`}
+          >
+            Manage this account in Admin
+          </a>
           <h2>Transaction history</h2>
           <p>
-            Stored source records, including matched copies. Pending
-            transactions may change.
+            Money in is positive (+); money out is negative (−). Pending
+            transactions may change. Matched source copies remain visible.
           </p>
           <ul className="account-list">
             {detail.transactions.map((t: any) => (
@@ -161,12 +209,6 @@ export default function Accounts({ api, route, revision }: any) {
               {loadingMore ? "Loading…" : "Load more transactions"}
             </button>
           )}
-          <a
-            className="back-link"
-            href={`#admin/accounts/${encodeURIComponent(id)}`}
-          >
-            Manage this account in Admin
-          </a>
         </>
       )}
       {index && id && !account && (

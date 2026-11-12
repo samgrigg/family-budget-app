@@ -1,3 +1,4 @@
+import { accountAmount } from "./accountRequests";
 export default function DataIssues({ issues = [] }: { issues?: any[] }) {
   if (!issues.length) return null;
   return (
@@ -11,8 +12,8 @@ export default function DataIssues({ issues = [] }: { issues?: any[] }) {
       <ul>
         {issues.map((i, n) => (
           <li key={n}>
-            {i.date} · {i.currency} {i.amount} per record · {i.count} records.{" "}
-            {i.reason}{" "}
+            {i.date} · {accountAmount(i.currency, i.amount)} per record ·{" "}
+            {i.count} records. {i.reason}{" "}
             <a
               className="shared-account-link"
               href={`#accounts/${encodeURIComponent(i.accountId)}`}
@@ -23,7 +24,7 @@ export default function DataIssues({ issues = [] }: { issues?: any[] }) {
         ))}
       </ul>
       <p>
-        <a className="shared-account-link" href="#admin">
+        <a className="shared-account-link" href="#admin/matches">
           Review linked accounts or unlink sources
         </a>
         <a className="shared-account-link" href="#admin/data-access">

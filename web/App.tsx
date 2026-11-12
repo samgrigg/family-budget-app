@@ -11,6 +11,7 @@ import {
 import DataIssues from "./DataIssues";
 import Accounts from "./Accounts";
 import Admin from "./Admin";
+import { accountAmount } from "./accountRequests";
 import MoneyFlow from "./MoneyFlow";
 import BillsOverview from "./BillsOverview";
 import Transfers from "./Transfers";
@@ -426,6 +427,8 @@ export default function App() {
           route={route}
           api={api}
           revision={accountRevision}
+          busy={busy || !!linkAction}
+          configured={state?.configured ?? false}
         />
       )}
       {page === "admin" && (
@@ -605,12 +608,7 @@ export default function App() {
                             "amount " + (Number(t.amount) < 0 ? "credit" : "")
                           }
                         >
-                          {t.currency === "USD"
-                            ? "$"
-                            : t.currency
-                              ? `${t.currency} `
-                              : ""}
-                          {t.amount}
+                          {accountAmount(t.currency, t.amount)}
                         </td>
                       </tr>
                     ))}
@@ -619,8 +617,8 @@ export default function App() {
               </div>
             )}
             <p className="fine">
-              Amounts follow Plaid’s convention: positive = money out; negative
-              = money in. Showing stored transactions.
+              Positive = money in; negative = money out. Showing stored
+              transactions.
             </p>
           </section>
         </>

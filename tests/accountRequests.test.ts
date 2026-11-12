@@ -98,8 +98,8 @@ it("rejects a mismatched detail identity and formats USD without losing other cu
   );
   expect(accepted).toBe(false);
   expect(error).toContain("did not match");
-  expect(accountAmount("USD", "-80")).toBe("$-80");
-  expect(accountAmount("CAD", "80")).toBe("CAD 80");
+  expect(accountAmount("USD", "-80")).toBe("+$80.00");
+  expect(accountAmount("CAD", "80")).toBe("−CAD 80.00");
 });
 
 it("cannot append a late page or save mismatched account values after navigation", async () => {
@@ -143,4 +143,14 @@ it("cannot append a late page or save mismatched account values after navigation
       body: { name: "B name", included: false },
     },
   ]);
+});
+
+it("displays deposits and refunds as positive and spending as negative without changing stored values", () => {
+  const deposit = { amount: "-2500.5" };
+  expect(accountAmount("USD", deposit.amount)).toBe("+$2,500.50");
+  expect(accountAmount("USD", "42.5")).toBe("−$42.50");
+  expect(accountAmount("USD", "-12")).toBe("+$12.00");
+  expect(accountAmount("USD", "0")).toBe("$0.00");
+  expect(accountAmount("USD", "-0")).toBe("$0.00");
+  expect(deposit.amount).toBe("-2500.5");
 });
