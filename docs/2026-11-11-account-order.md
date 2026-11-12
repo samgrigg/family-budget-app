@@ -17,3 +17,9 @@ Verification:
 - VoiceOver, actual enlarged text and physical touch dragging were not tested. Dragging offscreen does not auto-scroll; Move up/down remains available. No claim of accessibility conformance.
 
 Final checks: 230 tests across 43 files, TypeScript and production build passed.
+
+## Compact reorder mode
+
+Owner request: “The account rows should collapse to a minimum when reordering so I can see more of them at a time”. Reordering now hides balances, institution/type metadata, connection notices and section descriptions. Each compact row keeps the name, last four digits, drag handle and arrow move buttons. Arrow buttons retain full account-specific accessible names and title labels. Position remains available to assistive technology; moves still announce the new position. On narrow screens, name and last four digits use two compact lines; long names truncate visually while their full text remains in the DOM, accessible button names and title.
+
+Current HIG layout guidance was reviewed for task-focused hierarchy and progressive disclosure. Measured rows were 53 CSS pixels high on desktop and at 320px, with 44x44px move buttons and drag handles. At 320px there was no horizontal document overflow. Synthetic browser verification exercised keyboard moves, pointer dragging and Cancel restoring the full balance rows. Existing order persistence tests (4), TypeScript and production build passed. Large-text and VoiceOver checks remain unverified.

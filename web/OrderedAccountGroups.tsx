@@ -147,7 +147,7 @@ export default function OrderedAccountGroups({ index }: { index: any }) {
       )}
       {groups.map((group) => (
         <section
-          className="account-group"
+          className={editing ? "account-group is-reordering" : "account-group"}
           key={group.id}
           aria-labelledby={`group-${group.id}`}
         >
@@ -158,7 +158,7 @@ export default function OrderedAccountGroups({ index }: { index: any }) {
               {group.accounts.length === 1 ? "account" : "accounts"}
             </span>
           </div>
-          <p>{group.description}</p>
+          {!editing && <p>{group.description}</p>}
           <ul className="accounts-balance-list">
             {group.accounts.map((a: any, position: number) => (
               <li
@@ -173,9 +173,12 @@ export default function OrderedAccountGroups({ index }: { index: any }) {
               >
                 <div className="account-identity">
                   {editing ? (
-                    <strong>
-                      {a.name}
-                      {a.mask ? ` · ••${a.mask}` : ""}
+                    <strong
+                      className="account-order-name"
+                      title={`${a.name}${a.mask ? ` · ••${a.mask}` : ""}`}
+                    >
+                      <span>{a.name}</span>
+                      {a.mask && <span>••{a.mask}</span>}
                     </strong>
                   ) : (
                     <a
@@ -189,20 +192,24 @@ export default function OrderedAccountGroups({ index }: { index: any }) {
                       <span>View transactions →</span>
                     </a>
                   )}
-                  <span>
-                    {index.institutions.find(
-                      (i: any) => i.id === a.institutionId,
-                    )?.name || "Institution not identified"}{" "}
-                    · {a.subtype || a.type || "Type unknown"}
-                  </span>
-                  {a.stale && (
-                    <span>
-                      Connection needs attention ·{" "}
-                      <a href="#admin">Manage connection</a>
-                    </span>
+                  {!editing && (
+                    <>
+                      <span>
+                        {index.institutions.find(
+                          (i: any) => i.id === a.institutionId,
+                        )?.name || "Institution not identified"}{" "}
+                        · {a.subtype || a.type || "Type unknown"}
+                      </span>
+                      {a.stale && (
+                        <span>
+                          Connection needs attention ·{" "}
+                          <a href="#admin">Manage connection</a>
+                        </span>
+                      )}
+                    </>
                   )}
                 </div>
-                <AccountBalance account={a} compact />
+                {!editing && <AccountBalance account={a} compact />}
                 {editing && (
                   <div
                     className="account-order-controls"
@@ -242,12 +249,13 @@ export default function OrderedAccountGroups({ index }: { index: any }) {
                     >
                       ⠿
                     </span>
-                    <span>
+                    <span className="account-order-position">
                       Position {position + 1} of {group.accounts.length}
                     </span>
                     <button
                       type="button"
-                      className="secondary"
+                      className="secondary order-move-up"
+                      title="Move up"
                       aria-label={`Move ${a.name} up in ${group.name}`}
                       aria-disabled={position === 0}
                       onClick={() => {
@@ -260,11 +268,12 @@ export default function OrderedAccountGroups({ index }: { index: any }) {
                           );
                       }}
                     >
-                      Move up
+                      <span aria-hidden="true">↑</span>
                     </button>
                     <button
                       type="button"
-                      className="secondary"
+                      className="secondary order-move-down"
+                      title="Move down"
                       aria-label={`Move ${a.name} down in ${group.name}`}
                       aria-disabled={position === group.accounts.length - 1}
                       onClick={() => {
@@ -277,7 +286,7 @@ export default function OrderedAccountGroups({ index }: { index: any }) {
                           );
                       }}
                     >
-                      Move down
+                      <span aria-hidden="true">↓</span>
                     </button>
                     {drop && drop.id === a.id && (
                       <span className="order-drop-label">

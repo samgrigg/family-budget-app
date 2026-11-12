@@ -1968,3 +1968,79 @@ dialog {
   touch-action: none;
   user-select: none;
 }
+
+.account-group.is-reordering {
+  margin-top: 1rem;
+}
+.is-reordering .accounts-balance-list {
+  margin: 0.5rem 0;
+}
+.is-reordering .accounts-balance-list > li {
+  grid-template-columns: 44px minmax(0, 1fr) 44px 44px;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 52px;
+  padding: 0.25rem 0;
+}
+.is-reordering .account-identity {
+  grid-column: 2;
+  grid-row: 1;
+}
+.is-reordering .account-order-controls {
+  display: contents;
+}
+.is-reordering .account-drag-handle {
+  grid-column: 1;
+  grid-row: 1;
+}
+.is-reordering .account-order-controls button {
+  grid-row: 1;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  font-size: 1.125rem;
+}
+.is-reordering .order-move-up {
+  grid-column: 3;
+}
+.is-reordering .order-move-down {
+  grid-column: 4;
+}
+.account-order-name {
+  display: flex;
+  align-items: baseline;
+  gap: 0.375rem;
+  min-width: 0;
+  font-size: 1rem;
+}
+.account-order-name > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.account-order-name > span:last-child:not(:first-child) {
+  flex-shrink: 0;
+  font-weight: 400;
+}
+.account-order-position {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.is-reordering .order-drop-label {
+  grid-column: 1 / -1;
+}
+@media (max-width: 440px) {
+  .account-order-name {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+    line-height: 1.25;
+  }
+  .account-order-name > span {
+    max-width: 100%;
+  }
+}
