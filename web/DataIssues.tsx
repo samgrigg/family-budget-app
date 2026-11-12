@@ -23,10 +23,10 @@ export default function DataIssues({ issues = [] }: { issues?: any[] }) {
         ))}
       </ul>
       <p>
-        <a className="shared-account-link" href="#accounts">
+        <a className="shared-account-link" href="#admin">
           Review linked accounts or unlink sources
         </a>
-        <a className="shared-account-link" href="#data-access">
+        <a className="shared-account-link" href="#admin/data-access">
           Resume replacement review
         </a>
       </p>

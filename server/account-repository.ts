@@ -65,6 +65,43 @@ export class AccountRepository {
       included: !!a.included,
     }));
   }
+  balance(accountId: string) {
+    // Select one source snapshot, never sum copies of the same linked account.
+    // Staged replacement sources cannot become authoritative before review.
+    const row = this.db
+      .prepare(
+        `SELECT b.*,d.status,x.shared,
+      EXISTS(SELECT 1 FROM account_links l WHERE l.env=s.env AND l.left_id=s.account_id
+        AND l.status='linked' AND l.preferred_source=s.source_id) AS preferred
+      FROM source_accounts s JOIN account_balances b ON b.env=s.env
+        AND b.source_id=s.source_id AND b.provider_account_id=s.provider_account_id
+      JOIN data_sources d ON d.env=s.env AND d.id=s.source_id
+      LEFT JOIN source_account_access x ON x.env=s.env AND x.source_id=s.source_id
+        AND x.provider_account_id=s.provider_account_id
+      WHERE s.env=? AND s.account_id=? AND NOT EXISTS(
+        SELECT 1 FROM source_replacements r WHERE r.env=s.env
+        AND r.new_source_id=s.source_id AND r.state!='complete')
+      ORDER BY CASE WHEN d.status IN ('historical','revoke_required','needs_authorization')
+        OR x.shared=0 THEN 1 ELSE 0 END, preferred DESC,b.retrieved_at DESC,s.source_id
+      LIMIT 1`,
+      )
+      .get(this.env, accountId) as any;
+    return row
+      ? {
+          current: row.current,
+          available: row.available,
+          currency: row.currency,
+          retrievedAt: row.retrieved_at,
+          sourceId: row.source_id,
+          stale:
+            ["historical", "revoke_required", "needs_authorization"].includes(
+              row.status,
+            ) ||
+            row.shared === 0 ||
+            Date.now() - Date.parse(row.retrieved_at) > 48 * 60 * 60 * 1000,
+        }
+      : null;
+  }
   transactionIdentity(t: any): TransactionIdentity {
     return {
       id: t.canonicalTransactionId,

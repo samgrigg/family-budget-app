@@ -1761,3 +1761,75 @@ dialog {
   min-height: 1.625rem;
   overflow: visible;
 }
+
+.header-utilities {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-left: auto;
+}
+.admin-link {
+  display: inline-flex;
+  min-height: 44px;
+  min-width: 44px;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted-foreground);
+  border-radius: 4px;
+}
+.admin-link[aria-current="page"] {
+  color: var(--foreground);
+  font-weight: 600;
+}
+.account-institution {
+  margin-top: 2rem;
+}
+.balance-index a {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 1rem;
+  padding: 1.25rem 0.5rem;
+}
+.account-identity,
+.account-balance {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  min-width: 0;
+}
+.account-identity > span,
+.account-balance > span {
+  color: var(--muted-foreground);
+  font-size: 0.9375rem;
+}
+.account-balance {
+  text-align: right;
+}
+.balance-value {
+  font-size: 1.375rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.account-balance .balance-stale {
+  color: var(--foreground);
+}
+.account-balance-detail {
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2rem;
+}
+.account-balance-detail .account-balance {
+  text-align: left;
+}
+.account-balance-detail .balance-value {
+  font-size: 2rem;
+}
+@media (max-width: 380px) {
+  .balance-index a {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .balance-index .account-balance {
+    text-align: left;
+  }
+}

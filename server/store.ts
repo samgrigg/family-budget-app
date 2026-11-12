@@ -72,6 +72,29 @@ export class Store {
       );
       for (const a of accounts) {
         q.run(this.env, id, a.account_id, a.name, a.mask ?? "");
+        // Metadata-only updates must not erase a previously retrieved snapshot.
+        if (a.balances && typeof a.balances === "object") {
+          const amount = (value: unknown) =>
+            typeof value === "number" && Number.isFinite(value)
+              ? String(value)
+              : null;
+          this.db
+            .prepare(
+              `INSERT OR REPLACE INTO account_balances
+            VALUES(?,?,?,?,?,?,?)`,
+            )
+            .run(
+              this.env,
+              id,
+              a.account_id,
+              amount(a.balances.current),
+              amount(a.balances.available),
+              a.balances.iso_currency_code ||
+                a.balances.unofficial_currency_code ||
+                "",
+              new Date().toISOString(),
+            );
+        }
         this.db
           .prepare(
             "INSERT OR REPLACE INTO source_account_metadata VALUES(?,?,?,?,?)",
@@ -386,6 +409,11 @@ export class Store {
       for (const m of mappings) {
         this.db
           .prepare(
+            "DELETE FROM account_balances WHERE env=? AND source_id=? AND provider_account_id=?",
+          )
+          .run(this.env, m.source_id, m.provider_account_id);
+        this.db
+          .prepare(
             "DELETE FROM transaction_metadata WHERE env=? AND source_id=? AND transaction_id IN (SELECT id FROM transactions WHERE env=? AND connection=? AND account=?)",
           )
           .run(
@@ -427,6 +455,9 @@ export class Store {
   }
   remove(id: string) {
     this.db.transaction(() => {
+      this.db
+        .prepare("DELETE FROM account_balances WHERE env=? AND source_id=?")
+        .run(this.env, id);
       for (const table of [
         "transactions",
         "accounts",

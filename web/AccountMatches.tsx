@@ -341,7 +341,7 @@ export default function AccountMatches({ api, onRefresh, revision }: any) {
                 To add another account or replace a source, review and unlink
                 this operation first. All source history is preserved.
               </p>
-              <a href={`#accounts/${encodeURIComponent(o.left_id)}`}>
+              <a href={`#admin/accounts/${encodeURIComponent(o.left_id)}`}>
                 View account and source history
               </a>
               <button

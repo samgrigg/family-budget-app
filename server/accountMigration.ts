@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { chmod, mkdir, open, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
-export const accountSchemaVersion = 6;
+export const accountSchemaVersion = 7;
 const version = accountSchemaVersion;
 const schema = `
 CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL);
@@ -197,6 +197,14 @@ export function applyAccountMigration(db: Database.Database): void {
       );
     db.exec(`CREATE TABLE IF NOT EXISTS source_replacements(env TEXT NOT NULL,id TEXT NOT NULL,old_source_id TEXT NOT NULL,new_source_id TEXT,state TEXT NOT NULL,requested_days INTEGER NOT NULL,last_error TEXT,PRIMARY KEY(env,id));
       CREATE TABLE IF NOT EXISTS replacement_reviews(env TEXT NOT NULL,operation_id TEXT NOT NULL,provider_account_id TEXT NOT NULL,account_id TEXT NOT NULL,outcome TEXT NOT NULL,payload TEXT NOT NULL,PRIMARY KEY(env,operation_id,provider_account_id));`);
+    if (!db.prepare("SELECT 1 FROM schema_migrations WHERE version=6").get())
+      db.prepare("INSERT INTO schema_migrations VALUES(6,?)").run(
+        new Date().toISOString(),
+      );
+    db.exec(`CREATE TABLE IF NOT EXISTS account_balances(
+      env TEXT NOT NULL,source_id TEXT NOT NULL,provider_account_id TEXT NOT NULL,
+      current TEXT,available TEXT,currency TEXT NOT NULL,retrieved_at TEXT NOT NULL,
+      PRIMARY KEY(env,source_id,provider_account_id));`);
     // A missing historical v3 alias is unknown occupancy, not proof that a slot is free.
     ensureAccountIdentities(db);
     db.prepare("INSERT INTO schema_migrations VALUES(?,?)").run(

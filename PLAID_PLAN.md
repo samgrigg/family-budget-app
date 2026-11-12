@@ -134,3 +134,28 @@ acceptance is claimed.
 Primary references consulted: https://plaid.com/docs/link/update-mode/ ,
 https://plaid.com/docs/api/products/liabilities/ , and
 https://developer.apple.com/design/human-interface-guidelines/ .
+
+## 2026-11-11 Accounts/Admin balance display
+
+Owner approved a balance-first Accounts page and moving configuration into Admin.
+Retain cached `/accounts/get` values already fetched by the existing sync; no new
+product or paid live refresh call (BAL-001/002/004/006/008, CONV-001).
+GUIDE-001/002/003: secrets stay in the existing server integration; only safe
+balance snapshots are returned to the browser. GUIDE-014: consulted current
+implementation guidance and requested a fresh acceptance check. Existing Link,
+OAuth and sync call sequencing remain unchanged. Schema v7 uses the existing
+private backup workflow before upgrading stored databases.
+
+Verification uses synthetic in-memory accounts, API tests and a local browser
+preview. Live Sandbox Link/exchange and bank calls were not exercised in this
+session (CHECK-008 is a verification gap). Large-text and VoiceOver checks are
+also outstanding; see `docs/2026-11-11-accounts-admin.md`. Existing Dashboard and
+public-webhook tasks above remain unchanged. No new polling or webhook behavior
+was introduced; displayed balances are explicitly cached, retrieved on the
+existing owner-triggered sync/import paths (not promised as live bank data).
+
+Fresh acceptance review reported one failed check: CHECK-008, because a live
+Sandbox Link/exchange/product run was not performed. All reported applicable
+local checks passed; this is not a claim of end-to-end Plaid acceptance.
+Final local verification: 221 tests across 40 files, TypeScript, production
+build, and synthetic browser navigation at 320/390 CSS pixels passed.

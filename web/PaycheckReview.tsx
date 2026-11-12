@@ -428,7 +428,7 @@ export default function PaycheckReview({
                 ? `Showing unused posted USD deposits into ${data.evidence.accounts.find((a: any) => a.id === depositSource.accountId)?.name ?? "the mapped account"}.`
                 : "Set up an income source first."}
               {depositSource && availableDeposits.length === 0
-                ? " No eligible deposits found. Check account history or sync in Accounts."
+                ? " No eligible deposits found. Check account history or sync in Admin."
                 : ""}
             </p>
             <ExpectedAmountField

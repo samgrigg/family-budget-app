@@ -113,6 +113,7 @@ export function installAccountApi(
             a.id,
             {
               ...a,
+              balance: store.repository.balance(a.id),
               stale: raw
                 .filter((r) => r.canonicalAccountId === a.id)
                 .every(

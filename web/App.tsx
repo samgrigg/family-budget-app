@@ -10,6 +10,7 @@ import {
 } from "./linkSession";
 import DataIssues from "./DataIssues";
 import Accounts from "./Accounts";
+import Admin from "./Admin";
 import MoneyFlow from "./MoneyFlow";
 import BillsOverview from "./BillsOverview";
 import Transfers from "./Transfers";
@@ -33,17 +34,19 @@ export default function App() {
   const page =
     route === "" || route === "#paycheck-review"
       ? "paycheck-review"
-      : route.startsWith("#accounts") ||
+      : route.startsWith("#admin") ||
           route.startsWith("#data-access") ||
           route.startsWith("#institutions")
-        ? "accounts"
-        : route === "#money-flow"
-          ? "money-flow"
-          : route === "#income-overview"
-            ? "income-overview"
-            : route === "#bills-overview"
-              ? "bills-overview"
-              : "budget";
+        ? "admin"
+        : route.startsWith("#accounts")
+          ? "accounts"
+          : route === "#money-flow"
+            ? "money-flow"
+            : route === "#income-overview"
+              ? "income-overview"
+              : route === "#bills-overview"
+                ? "bills-overview"
+                : "budget";
   useEffect(() => {
     const navigate = () => {
       setRoute(location.hash);
@@ -56,7 +59,7 @@ export default function App() {
     return () => window.removeEventListener("hashchange", navigate);
   }, []);
   useEffect(() => {
-    document.title = `${page === "paycheck-review" ? "Paycheck Review" : page === "accounts" ? "Accounts" : page === "money-flow" ? "Money Flow" : page === "income-overview" ? "Income Overview" : page === "bills-overview" ? "Bills Overview" : "Budget"} · Family Budget`;
+    document.title = `${page === "paycheck-review" ? "Paycheck Review" : page === "admin" ? "Admin" : page === "accounts" ? "Accounts" : page === "money-flow" ? "Money Flow" : page === "income-overview" ? "Income Overview" : page === "bills-overview" ? "Bills Overview" : "Budget"} · Family Budget`;
   }, [page]);
   const csrf = useRef("");
   const handler = useRef<any>(null);
@@ -298,7 +301,16 @@ export default function App() {
           </span>
           <span>Family Budget</span>
         </a>
-        <span className="app-caption">Household finances</span>
+        <div className="header-utilities">
+          <span className="app-caption">Household finances</span>
+          <a
+            className="admin-link"
+            href="#admin"
+            aria-current={page === "admin" ? "page" : undefined}
+          >
+            Admin
+          </a>
+        </div>
       </header>
       <nav className="page-nav" aria-label="Main navigation">
         <a
@@ -411,6 +423,14 @@ export default function App() {
       {page === "accounts" && (
         <Accounts
           key={route}
+          route={route}
+          api={api}
+          revision={accountRevision}
+        />
+      )}
+      {page === "admin" && (
+        <Admin
+          key={route}
           revision={JSON.stringify([
             state?.connections,
             state?.accounts,
@@ -447,7 +467,8 @@ export default function App() {
           {!state && <p role="status">Loading…</p>}
           {state && !state.connections.length && (
             <p>
-              <a href="#accounts">Add an institution</a> to get started.
+              <a href="#admin/data-access">Add an institution</a> to get
+              started.
             </p>
           )}
           {state && (

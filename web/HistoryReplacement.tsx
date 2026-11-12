@@ -137,7 +137,7 @@ export default function HistoryReplacement({
         <div role="alert" className="error">
           <p>{error}</p>
           <button onClick={() => void load()}>Reload replacement status</button>
-          <a className="shared-account-link" href="#accounts">
+          <a className="shared-account-link" href="#admin">
             Review or unlink existing account links
           </a>
         </div>
@@ -198,7 +198,7 @@ export default function HistoryReplacement({
             <p>
               Confirmed account links and classification choices are saved.
               Cancelling keeps those choices.{" "}
-              <a className="shared-account-link" href="#accounts">
+              <a className="shared-account-link" href="#admin">
                 Review links and unlink to reverse a confirmed match
               </a>
             </p>
@@ -343,8 +343,8 @@ export default function HistoryReplacement({
             Insufficient matching evidence requires more history or an explicit
             distinct-account choice. Review classifications before saving;
             confirmed matches and classification choices are saved immediately
-            and can be unlinked in Accounts. The new source remains excluded
-            from estimates until replacement completes.
+            and can be unlinked in Admin. The new source remains excluded from
+            estimates until replacement completes.
           </p>
           <MatchReview
             preservePreferences

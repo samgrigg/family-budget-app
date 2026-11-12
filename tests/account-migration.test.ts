@@ -439,3 +439,32 @@ it("backs up version five before adding durable replacements without changing hi
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+it("backs up version six before adding balances and preserves existing financial history", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "budget-v6-"));
+  const db = fixture(join(dir, "synthetic.sqlite"));
+  try {
+    await migrateDatabase(db);
+    const before = snapshot(db);
+    db.exec(
+      "DROP TABLE account_balances; DELETE FROM schema_migrations WHERE version=7",
+    );
+    const backups = (await readdir(join(dir, "migration-backups"))).length;
+    expect(() => new Store(db, Buffer.alloc(32), "sandbox")).toThrow(
+      /Await migrateDatabase/,
+    );
+    await migrateDatabase(db);
+    expect((await readdir(join(dir, "migration-backups"))).length).toBe(
+      backups + 1,
+    );
+    expect(snapshot(db)).toEqual(before);
+    expect(db.prepare("SELECT * FROM account_balances").all()).toEqual([]);
+    await migrateDatabase(db);
+    expect((await readdir(join(dir, "migration-backups"))).length).toBe(
+      backups + 1,
+    );
+  } finally {
+    db.close();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
