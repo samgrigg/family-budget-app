@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { accountAmount } from "./accountRequests";
 export default function IncomeReview({ data, api, reload }: any) {
   const [view, setView] = useState("suggestions"),
     [busy, setBusy] = useState(false),
@@ -92,8 +93,8 @@ export default function IncomeReview({ data, api, reload }: any) {
                 <ul>
                   {b.transactions.map((t: any) => (
                     <li key={t.id}>
-                      {t.date} · {t.currency === "USD" ? "$" : `${t.currency} `}
-                      {Number(t.amount).toFixed(2)} · {t.name}
+                      {t.date} · {accountAmount(t.currency, t.amount)} ·{" "}
+                      {t.name}
                     </li>
                   ))}
                 </ul>

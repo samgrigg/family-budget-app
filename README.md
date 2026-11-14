@@ -1,4 +1,6 @@
-# Family Budget — Plaid connection proof of concept
+# Met Ends — Plaid connection proof of concept
+
+Met Ends aims to help households make ends meet through clear household money management, with dependable accounting as a core design goal.
 
 A local React/TypeScript app with a Node backend and SQLite. Connect through Plaid Link, import transactions, sync updates, and revoke access. The first target is your Amazon Chase card. This milestone is not yet an installable PWA.
 
@@ -137,3 +139,96 @@ adaptation of HIG [layout](https://developer.apple.com/design/human-interface-gu
 and [accessibility](https://developer.apple.com/design/human-interface-guidelines/accessibility)
 guidance. Full keyboard traversal, enlarged text/browser zoom and VoiceOver
 remain unverified; these checks do not establish accessibility conformance.
+
+## Paycheck review
+
+Paycheck Review is the default page. Set up Canyons/MACU and Adobe/Etrade with
+their actual deposit accounts, then select an arrived deposit and confirm that
+source’s next payday. Add predictable obligations due before replenishment,
+then last-statement and later-purchase card obligations as separate amounts.
+Use existing planned commitments and transaction history to confirm inputs.
+Reserve current cash first; assign future paycheck funding explicitly only
+when needed. Future income never increases safe to spend.
+
+Save incomplete reviews and return later. Each card’s funding is shared
+between reviews. Record a posted debit against its reservation when paid;
+record other cash spending separately. Do not record a card purchase again
+as a direct-cash commitment. Confirm card totals include fees/refunds and
+exclude overlap with other entries. Earlier unreserved paycheck leftovers
+stay separate; old unpaid reservations remain attached to their obligations.
+Reservations do not move money. Changed bank evidence or conflicting saves
+require another review. Unknown or unassigned spending prevents a definitive
+safe-to-spend result. The first release supports USD.
+
+In **Card statement data**, use **Refresh card data** for cached statement
+suggestions. If additional consent is needed, save your review and choose
+**Authorize card data**. This reuses the existing resumable bank authorization
+flow. Null or unsupported fields stay unknown; manual confirmation remains
+available. Imported statement balances are original balances, not proof of
+what is still unpaid. Existing account repairs do not request new card access.
+
+Assign imported card purchases to a single obligation using **Assign imported
+card purchases and credits**. Each purchase can be linked once. Cash movements
+must also be accounted for as an obligation payment or other cash use before
+safe to spend is shown. Money moved aside reduces this paycheck's available
+cash; these review records do not reclassify the underlying transactions.
+A future paycheck can be confirmed against its actual deposit without losing
+its funding promises. Correct contributions if its amount or timing changed.
+
+Verification for this increment: 208 synthetic JavaScript tests and the Python
+import test pass; TypeScript and an isolated Vite build pass. Browser testing
+used an in-memory synthetic database at 390px and 320px, including start,
+obligation creation, purchase assignment, reservations, save/resume, and finish.
+Keyboard skip-link focus worked; date inputs were corrected to at least 44px.
+VoiceOver, effective enlarged text/zoom, every error path, actual-device use,
+and real Sandbox consent/statement retrieval remain unverified. No real bank
+data or credentials were used for this verification.
+
+Income-source setup now saves immediately, independently of paycheck creation.
+The saved employer/account mapping is listed beside the form; successful saves
+and errors appear there too. Editing an existing source prefills its name and
+account. Saving a source preserves unrelated unsaved review changes.
+
+When adding a paycheck, the deposit list follows the selected income source's
+mapped account. It shows unused, posted USD deposits only, and switching the
+source clears the previous deposit selection. Reconfirming an existing paycheck
+also allows its currently linked deposit. Employer-description heuristics are
+not applied yet; deposits within the mapped account remain available for review.
+
+Expected paycheck amounts are suggested from up to five recent received
+paychecks explicitly identified for the selected source and still matching
+posted USD deposit evidence. The editable suggestion uses the median (one
+paycheck uses its own amount). A range wider than 10% of the median is flagged.
+Without confirmed paycheck history the field stays blank. Existing saved
+expectations are preserved; **Use suggested amount** applies the estimate on
+request. Suggestions never count as received cash or increase safe to spend.
+
+## Visual system
+
+The app follows system light/dark appearance using CSS media queries from
+first paint. Zinc colors are shared across review screens, accounts, budgets,
+overviews, dialogs and charts. Body text uses the system font; financial
+figures use locally bundled Geist Mono. No external font service is required.
+Local Radix-based shadcn components live in `web/components/ui`, configured
+by `components.json`; theme tokens live in `web/theme.css`.
+
+The visual pass preserves native selects, dates, disclosures and modal behavior,
+44px control targets, browser zoom, safe areas and reduced-motion preferences.
+Dark browser QA covered all main destinations, the Money Flow dialog and its
+Escape focus return, and 320px/390px review layouts. The light palette was
+checked through an isolated built-CSS preview, without changing system settings.
+Unknown financial state wrapped without page overflow at 320px. A live system
+appearance switch, enlarged text/browser zoom and VoiceOver remain unverified;
+no accessibility conformance claim is made.
+
+Validation: 215 synthetic tests, TypeScript and isolated production build pass.
+Vite reports harmless upstream Radix `use client` directive warnings. The npm
+audit count returned to the pre-change baseline after removing the CLI runtime:
+three existing development-tool advisories (one moderate, two critical); no
+unrelated forced dependency upgrades were made in this visual pass.
+
+## Met Ends naming
+
+The app name reflects its purpose: helping households make ends meet. The header, browser titles, and bank-connection consent screens use Met Ends consistently. Existing provider user identifiers remain stable to preserve connection identity. Historical design documents retain the name used when written.
+
+This text-only change follows Apple HIG [writing](https://developer.apple.com/design/human-interface-guidelines/writing) guidance on consistent language. Browser titles and semantic web controls retain web conventions. Browser layout, enlarged text and VoiceOver were not rechecked for this rename; no accessibility conformance claim is made.

@@ -40,7 +40,13 @@ export async function loadAccountView(
   }
 }
 export function accountAmount(currency: string, amount: string) {
-  return `${currency === "USD" ? "$" : currency ? `${currency} ` : ""}${amount}`;
+  // Provider values remain unchanged for reconciliation and analysis.
+  const value = -Number(amount);
+  if (!Number.isFinite(value)) return "Amount unavailable";
+  const sign = value > 0 ? "+" : value < 0 ? "−" : "";
+  const label =
+    currency === "USD" ? "$" : currency ? `${currency} ` : "Currency unknown ";
+  return `${sign}${label}${Math.abs(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 export async function appendAccountPage(
   api: (path: string) => Promise<any>,

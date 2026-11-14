@@ -1,0 +1,114 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* System appearance is the only theme source; no saved override. */
+@custom-variant dark (@media (prefers-color-scheme: dark));
+
+@theme inline {
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-heading: var(--font-sans);
+  --font-mono: "Geist Mono Variable", ui-monospace, monospace;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--foreground);
+  --color-popover: var(--card);
+  --color-popover-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--muted);
+  --color-secondary-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--muted);
+  --color-accent-foreground: var(--foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: 4px;
+  --radius-md: 5px;
+  --radius-lg: 6px;
+  --radius-xl: 8px;
+}
+:root {
+  color-scheme: light;
+  --background: #f6f6f7;
+  --foreground: #202023;
+  --card: #ffffff;
+  --primary: #27272a;
+  --primary-foreground: #fafafa;
+  --muted: #efeff1;
+  --muted-foreground: #62626c;
+  --border: #dfdfe4;
+  --input: #c9c9d1;
+  --ring: #71717a;
+  --destructive: #b42335;
+  --destructive-bg: #fff1f2;
+  --destructive-border: #fecdd3;
+  --success: #16734c;
+  --success-bg: #edf8f1;
+  --warning: #926416;
+  --shadow: 0 1px 2px rgb(0 0 0 / 3%);
+  --radius: 6px;
+  --line: var(--border);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --background: #111113;
+    --foreground: #ededf0;
+    --card: #19191c;
+    --primary: #e4e4e7;
+    --primary-foreground: #18181b;
+    --muted: #242428;
+    --muted-foreground: #a1a1ab;
+    --border: #303036;
+    --input: #484850;
+    --ring: #a1a1aa;
+    --destructive: #fda4af;
+    --destructive-bg: #30191e;
+    --destructive-border: #71303d;
+    --success: #6bd5a3;
+    --success-bg: #142b22;
+    --warning: #e4bb6e;
+    --shadow: 0 1px 2px rgb(0 0 0 / 15%);
+  }
+}
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+:root {
+  --flow-income: #25634b;
+  --flow-bill: #62418a;
+  --flow-spending: #94634b;
+  --flow-boundary: #64748b;
+  --flow-other: #6d7c62;
+  --flow-debt: #9a6840;
+  --flow-transfer: #3569a6;
+  --flow-same: #7a8190;
+  --flow-untraced: #8a6b35;
+  --flow-unallocated: #a1a1aa;
+  --flow-savings: #087f8c;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --flow-income: #69b997;
+    --flow-bill: #b69ad6;
+    --flow-spending: #ca9b7c;
+    --flow-boundary: #a0b0c5;
+    --flow-other: #a5b899;
+    --flow-debt: #d7aa7c;
+    --flow-transfer: #7da9dc;
+    --flow-same: #a2aabc;
+    --flow-untraced: #c5a471;
+    --flow-unallocated: #a1a1aa;
+    --flow-savings: #66bac4;
+  }
+}

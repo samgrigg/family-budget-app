@@ -98,3 +98,14 @@ it("replacement OAuth context keeps operation ID and exchanges only through its 
   expect(paths).toEqual(["/source-replacements/replace%2Fid/exchange"]);
   expect(readLinkAction(s, "sandbox")).toBeNull();
 });
+it("retains additional card consent through OAuth and verifies the same source", async () => {
+  const s = storage();
+  const a = { ...action(), mode: "card_data" as const };
+  saveLinkAction(s, a);
+  expect(readLinkAction(s, "sandbox")!.mode).toBe("card_data");
+  await completeLinkAction(s, a, "unused", async (path, body) => {
+    expect(path).toBe("/data-sources/existing%2Fsource/authorization-complete");
+    expect(body).toEqual({ action: "card_data" });
+  });
+  expect(readLinkAction(s, "sandbox")).toBeNull();
+});

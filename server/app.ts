@@ -1,3 +1,5 @@
+import { refreshCardLiabilities } from "./card-liabilities";
+import { installPaycheckApi } from "./paycheck-api";
 import { installBillEvidenceApi } from "./bill-evidence";
 import { installBillMergeApi } from "./bill-merge";
 import { installBillPlanApi, annotateRepayments, type Plan } from "./bill-plan";
@@ -204,6 +206,7 @@ export function createApp(
     res.json({ ok: true });
   });
   installBillPlanApi(app, store, billDrafts);
+  installPaycheckApi(app, store, billDrafts, provider);
   installBillMergeApi(app, store, billDrafts);
   installBillEvidenceApi(app, store, billDrafts);
   app.get("/api/bills", (req, res) => {
@@ -249,8 +252,9 @@ export function createApp(
     try {
       const r = await provider.call("/link/token/create", {
         user: { client_user_id: `family-budget-${store.env}` },
-        client_name: "Family Budget",
+        client_name: "Met Ends",
         products: ["transactions"],
+        additional_consented_products: ["liabilities"],
         country_codes: ["US"],
         language: "en",
         transactions: { days_requested: 365 },
@@ -366,7 +370,7 @@ export function createApp(
   }
   app.post("/api/data-sources/:id/link-token", async (req, res, next) => {
     const id = String(req.params.id);
-    if (!["repair", "select_accounts"].includes(req.body?.action))
+    if (!["repair", "select_accounts", "card_data"].includes(req.body?.action))
       return res.status(400).json({
         error: "Choose Repair authorization or Review shared accounts.",
       });
@@ -379,10 +383,13 @@ export function createApp(
           throw Object.assign(Error(), { code: "DISCONNECTED" });
         result = await provider.call("/link/token/create", {
           user: { client_user_id: `family-budget-${store.env}` },
-          client_name: "Family Budget",
+          client_name: "Met Ends",
           country_codes: ["US"],
           language: "en",
           access_token: store.token(id),
+          ...(req.body.action === "card_data"
+            ? { additional_consented_products: ["liabilities"] }
+            : {}),
           ...(req.body.action === "select_accounts"
             ? { update: { account_selection_enabled: true } }
             : {}),
@@ -409,6 +416,8 @@ export function createApp(
           if (store.connection(id).status === "revoke_required")
             throw Object.assign(Error(), { code: "DISCONNECTED" });
           await syncSource(id);
+          if (req.body?.action === "card_data")
+            await refreshCardLiabilities(store, provider, id);
         });
         res.json(state());
       } catch (error) {

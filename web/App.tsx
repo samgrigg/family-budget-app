@@ -1,3 +1,4 @@
+import PaycheckReview from "./PaycheckReview";
 import BudgetTabs, { type BudgetTab } from "./BudgetTabs";
 import BillPlan from "./BillPlan";
 import {
@@ -9,6 +10,8 @@ import {
 } from "./linkSession";
 import DataIssues from "./DataIssues";
 import Accounts from "./Accounts";
+import Admin from "./Admin";
+import { accountAmount } from "./accountRequests";
 import MoneyFlow from "./MoneyFlow";
 import BillsOverview from "./BillsOverview";
 import Transfers from "./Transfers";
@@ -30,17 +33,21 @@ export default function App() {
   const [accountFilter, setAccountFilter] = useState("");
   const [route, setRoute] = useState(location.hash);
   const page =
-    route.startsWith("#accounts") ||
-    route.startsWith("#data-access") ||
-    route.startsWith("#institutions")
-      ? "accounts"
-      : route === "#money-flow"
-        ? "money-flow"
-        : route === "#income-overview"
-          ? "income-overview"
-          : route === "#bills-overview"
-            ? "bills-overview"
-            : "budget";
+    route === "" || route === "#paycheck-review"
+      ? "paycheck-review"
+      : route.startsWith("#admin") ||
+          route.startsWith("#data-access") ||
+          route.startsWith("#institutions")
+        ? "admin"
+        : route.startsWith("#accounts")
+          ? "accounts"
+          : route === "#money-flow"
+            ? "money-flow"
+            : route === "#income-overview"
+              ? "income-overview"
+              : route === "#bills-overview"
+                ? "bills-overview"
+                : "budget";
   useEffect(() => {
     const navigate = () => {
       setRoute(location.hash);
@@ -53,7 +60,7 @@ export default function App() {
     return () => window.removeEventListener("hashchange", navigate);
   }, []);
   useEffect(() => {
-    document.title = `${page === "accounts" ? "Accounts" : page === "money-flow" ? "Money Flow" : page === "income-overview" ? "Income Overview" : page === "bills-overview" ? "Bills Overview" : "Budget"} · Family Budget`;
+    document.title = `${page === "paycheck-review" ? "Paycheck Review" : page === "admin" ? "Admin" : page === "accounts" ? "Accounts" : page === "money-flow" ? "Money Flow" : page === "income-overview" ? "Income Overview" : page === "bills-overview" ? "Bills Overview" : "Budget"} · Met Ends`;
   }, [page]);
   const csrf = useRef("");
   const handler = useRef<any>(null);
@@ -288,10 +295,31 @@ export default function App() {
       </a>
       <header>
         <a className="brand" href="/">
-          <span>Family Budget</span>
+          <span className="brand-mark" aria-hidden="true">
+            <i />
+            <i />
+            <i />
+          </span>
+          <span>Met Ends</span>
         </a>
+        <div className="header-utilities">
+          <span className="app-caption">Household finances</span>
+          <a
+            className="admin-link"
+            href="#admin"
+            aria-current={page === "admin" ? "page" : undefined}
+          >
+            Admin
+          </a>
+        </div>
       </header>
       <nav className="page-nav" aria-label="Main navigation">
+        <a
+          href="#paycheck-review"
+          aria-current={page === "paycheck-review" ? "page" : undefined}
+        >
+          Paycheck Review
+        </a>
         <a href="#budget" aria-current={page === "budget" ? "page" : undefined}>
           Budget
         </a>
@@ -320,6 +348,12 @@ export default function App() {
           Money Flow
         </a>
       </nav>
+      {page === "paycheck-review" && (
+        <PaycheckReview
+          api={api}
+          onCardConsent={(id) => startLink("card_data", id)}
+        />
+      )}
       {page === "budget" && <DataIssues issues={state?.dataIssues} />}
       {page === "money-flow" && <MoneyFlow api={api} />}
       {page === "income-overview" && (
@@ -390,6 +424,16 @@ export default function App() {
       {page === "accounts" && (
         <Accounts
           key={route}
+          route={route}
+          api={api}
+          revision={accountRevision}
+          busy={busy || !!linkAction}
+          configured={state?.configured ?? false}
+        />
+      )}
+      {page === "admin" && (
+        <Admin
+          key={route}
           revision={JSON.stringify([
             state?.connections,
             state?.accounts,
@@ -426,7 +470,8 @@ export default function App() {
           {!state && <p role="status">Loading…</p>}
           {state && !state.connections.length && (
             <p>
-              <a href="#accounts">Add an institution</a> to get started.
+              <a href="#admin/data-access">Add an institution</a> to get
+              started.
             </p>
           )}
           {state && (
@@ -563,12 +608,7 @@ export default function App() {
                             "amount " + (Number(t.amount) < 0 ? "credit" : "")
                           }
                         >
-                          {t.currency === "USD"
-                            ? "$"
-                            : t.currency
-                              ? `${t.currency} `
-                              : ""}
-                          {t.amount}
+                          {accountAmount(t.currency, t.amount)}
                         </td>
                       </tr>
                     ))}
@@ -577,8 +617,8 @@ export default function App() {
               </div>
             )}
             <p className="fine">
-              Amounts follow Plaid’s convention: positive = money out; negative
-              = money in. Showing stored transactions.
+              Positive = money in; negative = money out. Showing stored
+              transactions.
             </p>
           </section>
         </>

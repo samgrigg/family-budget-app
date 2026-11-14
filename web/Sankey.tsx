@@ -49,18 +49,18 @@ export default function Sankey({ data, month, money }: any) {
     }
   }
   const colors: any = {
-    Income: "#25634b",
-    Bill: "#62418a",
-    Spending: "#94634b",
-    "Boundary inflow": "#64748b",
-    "Boundary outflow": "#64748b",
-    "Other inflow": "#6d7c62",
-    "Debt payment": "#9a6840",
-    "Internal transfer": "#3569a6",
-    "Same account": "#7a8190",
-    "Untraced funding": "#8a6b35",
-    Unallocated: "#a1a1aa",
-    Savings: "#087f8c",
+    Income: "var(--flow-income)",
+    Bill: "var(--flow-bill)",
+    Spending: "var(--flow-spending)",
+    "Boundary inflow": "var(--flow-boundary)",
+    "Boundary outflow": "var(--flow-boundary)",
+    "Other inflow": "var(--flow-other)",
+    "Debt payment": "var(--flow-debt)",
+    "Internal transfer": "var(--flow-transfer)",
+    "Same account": "var(--flow-same)",
+    "Untraced funding": "var(--flow-untraced)",
+    Unallocated: "var(--flow-unallocated)",
+    Savings: "var(--flow-savings)",
   };
   const paths = (data?.links ?? []).map((e: any) => {
     const a = nodes.find((n: any) => n.id === e.source),
@@ -208,7 +208,7 @@ export default function Sankey({ data, month, money }: any) {
                     ? colors.Bill
                     : n.id.startsWith("income:")
                       ? colors.Income
-                      : "#52525b"
+                      : "var(--muted-foreground)"
               }
             />
             <text x={n.x + 17} y={n.y - 10} fontSize="14">

@@ -12,6 +12,7 @@ export type LinkAction = LinkContext &
         sourceId: string;
         operationId?: never;
       }
+    | { mode: "card_data"; sourceId: string; operationId?: never }
     | { mode: "replacement"; sourceId: string; operationId: string }
   );
 type SessionStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
@@ -39,7 +40,7 @@ export function readLinkAction(
   }
   if (
     !action ||
-    !["new", "repair", "select_accounts", "replacement"].includes(
+    !["new", "repair", "select_accounts", "card_data", "replacement"].includes(
       action.mode,
     ) ||
     !["link", "verify"].includes(action.phase) ||
@@ -98,7 +99,7 @@ export async function completeLinkAction(
   saveLinkAction(storage, pending);
   const result = await api(
     `/data-sources/${encodeURIComponent(action.sourceId!)}/authorization-complete`,
-    {},
+    action.mode === "card_data" ? { action: "card_data" } : {},
   );
   cancelLinkAction(storage);
   return result;
