@@ -286,7 +286,7 @@ export class SourceReplacements {
           reject("Old access must be revoked first.");
         const response = await this.provider.call("/link/token/create", {
           user: { client_user_id: `family-budget-${this.store.env}` },
-          client_name: "Family Budget",
+          client_name: "Met Ends",
           products: ["transactions"],
           additional_consented_products: ["liabilities"],
           country_codes: ["US"],

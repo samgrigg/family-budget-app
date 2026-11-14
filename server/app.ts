@@ -252,7 +252,7 @@ export function createApp(
     try {
       const r = await provider.call("/link/token/create", {
         user: { client_user_id: `family-budget-${store.env}` },
-        client_name: "Family Budget",
+        client_name: "Met Ends",
         products: ["transactions"],
         additional_consented_products: ["liabilities"],
         country_codes: ["US"],
@@ -383,7 +383,7 @@ export function createApp(
           throw Object.assign(Error(), { code: "DISCONNECTED" });
         result = await provider.call("/link/token/create", {
           user: { client_user_id: `family-budget-${store.env}` },
-          client_name: "Family Budget",
+          client_name: "Met Ends",
           country_codes: ["US"],
           language: "en",
           access_token: store.token(id),

@@ -86,5 +86,5 @@ const server = tls
     )
   : httpServer(app);
 server.listen(Number(url.port || (tls ? 443 : 80)), "127.0.0.1", () =>
-  console.log(`Family Budget: ${origin} (${env})`),
+  console.log(`Met Ends: ${origin} (${env})`),
 );

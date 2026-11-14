@@ -60,7 +60,7 @@ export default function App() {
     return () => window.removeEventListener("hashchange", navigate);
   }, []);
   useEffect(() => {
-    document.title = `${page === "paycheck-review" ? "Paycheck Review" : page === "admin" ? "Admin" : page === "accounts" ? "Accounts" : page === "money-flow" ? "Money Flow" : page === "income-overview" ? "Income Overview" : page === "bills-overview" ? "Bills Overview" : "Budget"} · Family Budget`;
+    document.title = `${page === "paycheck-review" ? "Paycheck Review" : page === "admin" ? "Admin" : page === "accounts" ? "Accounts" : page === "money-flow" ? "Money Flow" : page === "income-overview" ? "Income Overview" : page === "bills-overview" ? "Bills Overview" : "Budget"} · Met Ends`;
   }, [page]);
   const csrf = useRef("");
   const handler = useRef<any>(null);
@@ -300,7 +300,7 @@ export default function App() {
             <i />
             <i />
           </span>
-          <span>Family Budget</span>
+          <span>Met Ends</span>
         </a>
         <div className="header-utilities">
           <span className="app-caption">Household finances</span>

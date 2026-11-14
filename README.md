@@ -1,4 +1,6 @@
-# Family Budget — Plaid connection proof of concept
+# Met Ends — Plaid connection proof of concept
+
+Met Ends aims to help households make ends meet through clear household money management, with dependable accounting as a core design goal.
 
 A local React/TypeScript app with a Node backend and SQLite. Connect through Plaid Link, import transactions, sync updates, and revoke access. The first target is your Amazon Chase card. This milestone is not yet an installable PWA.
 
@@ -224,3 +226,9 @@ Vite reports harmless upstream Radix `use client` directive warnings. The npm
 audit count returned to the pre-change baseline after removing the CLI runtime:
 three existing development-tool advisories (one moderate, two critical); no
 unrelated forced dependency upgrades were made in this visual pass.
+
+## Met Ends naming
+
+The app name reflects its purpose: helping households make ends meet. The header, browser titles, and bank-connection consent screens use Met Ends consistently. Existing provider user identifiers remain stable to preserve connection identity. Historical design documents retain the name used when written.
+
+This text-only change follows Apple HIG [writing](https://developer.apple.com/design/human-interface-guidelines/writing) guidance on consistent language. Browser titles and semantic web controls retain web conventions. Browser layout, enlarged text and VoiceOver were not rechecked for this rename; no accessibility conformance claim is made.
